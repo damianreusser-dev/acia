@@ -71,6 +71,96 @@ export class Agent {
   }
 
   /**
+   * Process a message with automatic tool execution loop.
+   * Continues until the LLM responds without a tool call or max iterations reached.
+   */
+  async processMessageWithTools(
+    message: string,
+    maxIterations: number = 10
+  ): Promise<string> {
+    this.conversationHistory.push({
+      role: 'user',
+      content: message,
+    });
+
+    const systemPromptWithTools = this.buildSystemPrompt();
+    let iterations = 0;
+    let finalResponse = '';
+
+    while (iterations < maxIterations) {
+      iterations++;
+
+      const response = await this.llmClient.chat(
+        this.conversationHistory,
+        systemPromptWithTools
+      );
+
+      this.conversationHistory.push({
+        role: 'assistant',
+        content: response.content,
+      });
+
+      // Check for tool calls
+      const toolCall = this.parseToolCall(response.content);
+
+      if (!toolCall) {
+        // No tool call, this is the final response
+        finalResponse = response.content;
+        break;
+      }
+
+      // Execute the tool
+      const toolResult = await this.executeTool(toolCall.tool, toolCall.params);
+
+      // Add tool result to conversation
+      const resultMessage = toolResult.success
+        ? `Tool "${toolCall.tool}" executed successfully:\n${toolResult.output}`
+        : `Tool "${toolCall.tool}" failed:\n${toolResult.error}`;
+
+      this.conversationHistory.push({
+        role: 'user',
+        content: `<tool_result>\n${resultMessage}\n</tool_result>`,
+      });
+
+      finalResponse = response.content;
+    }
+
+    if (iterations >= maxIterations) {
+      finalResponse += '\n\n[Max iterations reached]';
+    }
+
+    return finalResponse;
+  }
+
+  /**
+   * Parse a tool call from LLM response
+   */
+  private parseToolCall(
+    content: string
+  ): { tool: string; params: Record<string, unknown> } | null {
+    const toolCallMatch = content.match(/<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/);
+
+    if (!toolCallMatch || !toolCallMatch[1]) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(toolCallMatch[1]);
+
+      if (typeof parsed.tool !== 'string') {
+        return null;
+      }
+
+      return {
+        tool: parsed.tool,
+        params: parsed.params ?? {},
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Execute a tool by name with given parameters
    */
   async executeTool(

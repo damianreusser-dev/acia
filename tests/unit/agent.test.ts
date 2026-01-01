@@ -159,4 +159,129 @@ describe('Agent', () => {
       expect(result.error).toContain('Tool not found');
     });
   });
+
+  describe('processMessageWithTools', () => {
+    it('should return response without tool call', async () => {
+      const response = await agent.processMessageWithTools('Hello');
+
+      expect(response).toBe('Mock response');
+    });
+
+    it('should execute tool and continue conversation', async () => {
+      const tool: Tool = {
+        definition: {
+          name: 'greet',
+          description: 'Greet someone',
+          parameters: [{ name: 'name', type: 'string', description: 'Name', required: true }],
+        },
+        execute: vi.fn().mockResolvedValue({ success: true, output: 'Hello, World!' }),
+      };
+
+      // First response has tool call, second is final
+      const mockChat = vi
+        .fn()
+        .mockResolvedValueOnce({
+          content: '<tool_call>\n{"tool": "greet", "params": {"name": "World"}}\n</tool_call>',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        })
+        .mockResolvedValueOnce({
+          content: 'Greeted successfully!',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        });
+
+      const customMockClient = { chat: mockChat } as unknown as LLMClient;
+
+      const agentWithTools = new Agent({
+        name: 'ToolAgent',
+        role: 'Tester',
+        systemPrompt: 'Test',
+        llmClient: customMockClient,
+        tools: [tool],
+      });
+
+      const response = await agentWithTools.processMessageWithTools('Say hello');
+
+      expect(tool.execute).toHaveBeenCalledWith({ name: 'World' });
+      expect(response).toBe('Greeted successfully!');
+      // Should have: user message, assistant with tool call, tool result, assistant final
+      expect(agentWithTools.getHistory()).toHaveLength(4);
+    });
+
+    it('should stop at max iterations', async () => {
+      const tool: Tool = {
+        definition: {
+          name: 'loop',
+          description: 'Loop forever',
+          parameters: [],
+        },
+        execute: vi.fn().mockResolvedValue({ success: true, output: 'Done' }),
+      };
+
+      // Always return tool call
+      const mockChat = vi.fn().mockResolvedValue({
+        content: '<tool_call>\n{"tool": "loop", "params": {}}\n</tool_call>',
+        stopReason: 'end_turn',
+        usage: { inputTokens: 10, outputTokens: 20 },
+      });
+
+      const customMockClient = { chat: mockChat } as unknown as LLMClient;
+
+      const agentWithTools = new Agent({
+        name: 'ToolAgent',
+        role: 'Tester',
+        systemPrompt: 'Test',
+        llmClient: customMockClient,
+        tools: [tool],
+      });
+
+      const response = await agentWithTools.processMessageWithTools('Loop', 3);
+
+      expect(tool.execute).toHaveBeenCalledTimes(3);
+      expect(response).toContain('[Max iterations reached]');
+    });
+
+    it('should handle tool execution failure', async () => {
+      const tool: Tool = {
+        definition: {
+          name: 'fail',
+          description: 'Always fails',
+          parameters: [],
+        },
+        execute: vi.fn().mockResolvedValue({ success: false, error: 'Intentional failure' }),
+      };
+
+      const mockChat = vi
+        .fn()
+        .mockResolvedValueOnce({
+          content: '<tool_call>\n{"tool": "fail", "params": {}}\n</tool_call>',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        })
+        .mockResolvedValueOnce({
+          content: 'Tool failed, but I handled it.',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        });
+
+      const customMockClient = { chat: mockChat } as unknown as LLMClient;
+
+      const agentWithTools = new Agent({
+        name: 'ToolAgent',
+        role: 'Tester',
+        systemPrompt: 'Test',
+        llmClient: customMockClient,
+        tools: [tool],
+      });
+
+      const response = await agentWithTools.processMessageWithTools('Try to fail');
+
+      expect(response).toBe('Tool failed, but I handled it.');
+      // Check that error was passed to conversation
+      const history = agentWithTools.getHistory();
+      const toolResultMsg = history.find((h) => h.content.includes('tool_result'));
+      expect(toolResultMsg?.content).toContain('Intentional failure');
+    });
+  });
 });
