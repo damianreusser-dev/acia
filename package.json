@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "dev": "tsx watch src/cli/index.ts",
+    "dev": "tsx src/cli/index.ts",
+    "dev:watch": "tsx watch src/cli/index.ts",
     "start": "node dist/cli/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
