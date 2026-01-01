@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Agent } from '../../src/agents/base/agent.js';
 import { LLMClient } from '../../src/core/llm/client.js';
+import { Tool, ToolDefinition, ToolResult } from '../../src/core/tools/types.js';
 
 // Mock LLMClient
 vi.mock('../../src/core/llm/client.js', () => {
@@ -87,6 +88,75 @@ describe('Agent', () => {
 
       expect(history1).not.toBe(history2);
       expect(history1).toEqual(history2);
+    });
+  });
+
+  describe('tools', () => {
+    const createMockTool = (name: string): Tool => ({
+      definition: {
+        name,
+        description: `Mock ${name} tool`,
+        parameters: [
+          { name: 'input', type: 'string', description: 'Test input', required: true },
+        ],
+      },
+      execute: vi.fn().mockResolvedValue({ success: true, output: 'Tool executed' }),
+    });
+
+    it('should register tools from config', () => {
+      const tool1 = createMockTool('tool1');
+      const tool2 = createMockTool('tool2');
+
+      const agentWithTools = new Agent({
+        name: 'ToolAgent',
+        role: 'Tester',
+        systemPrompt: 'Test',
+        llmClient: mockLLMClient,
+        tools: [tool1, tool2],
+      });
+
+      expect(agentWithTools.getAvailableTools()).toEqual(['tool1', 'tool2']);
+      expect(agentWithTools.getInfo().toolCount).toBe(2);
+    });
+
+    it('should check if tool exists', () => {
+      const tool = createMockTool('test_tool');
+
+      const agentWithTools = new Agent({
+        name: 'ToolAgent',
+        role: 'Tester',
+        systemPrompt: 'Test',
+        llmClient: mockLLMClient,
+        tools: [tool],
+      });
+
+      expect(agentWithTools.hasTool('test_tool')).toBe(true);
+      expect(agentWithTools.hasTool('nonexistent')).toBe(false);
+    });
+
+    it('should execute a registered tool', async () => {
+      const tool = createMockTool('test_tool');
+
+      const agentWithTools = new Agent({
+        name: 'ToolAgent',
+        role: 'Tester',
+        systemPrompt: 'Test',
+        llmClient: mockLLMClient,
+        tools: [tool],
+      });
+
+      const result = await agentWithTools.executeTool('test_tool', { input: 'test' });
+
+      expect(result.success).toBe(true);
+      expect(result.output).toBe('Tool executed');
+      expect(tool.execute).toHaveBeenCalledWith({ input: 'test' });
+    });
+
+    it('should return error for non-existent tool', async () => {
+      const result = await agent.executeTool('nonexistent', {});
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Tool not found');
     });
   });
 });

@@ -3,17 +3,20 @@
  *
  * Foundation for all ACIA agents. Provides:
  * - LLM integration for reasoning
+ * - Tool execution capabilities
  * - Message handling
  * - Basic lifecycle management
  */
 
 import { LLMClient, LLMMessage } from '../../core/llm/client.js';
+import { Tool, ToolResult } from '../../core/tools/types.js';
 
 export interface AgentConfig {
   name: string;
   role: string;
   systemPrompt: string;
   llmClient: LLMClient;
+  tools?: Tool[];
 }
 
 export interface AgentMessage {
@@ -29,12 +32,19 @@ export class Agent {
   private systemPrompt: string;
   private llmClient: LLMClient;
   private conversationHistory: LLMMessage[] = [];
+  private tools: Map<string, Tool> = new Map();
 
   constructor(config: AgentConfig) {
     this.name = config.name;
     this.role = config.role;
     this.systemPrompt = config.systemPrompt;
     this.llmClient = config.llmClient;
+
+    if (config.tools) {
+      for (const tool of config.tools) {
+        this.tools.set(tool.definition.name, tool);
+      }
+    }
   }
 
   /**
@@ -46,7 +56,11 @@ export class Agent {
       content: message,
     });
 
-    const response = await this.llmClient.chat(this.conversationHistory, this.systemPrompt);
+    const systemPromptWithTools = this.buildSystemPrompt();
+    const response = await this.llmClient.chat(
+      this.conversationHistory,
+      systemPromptWithTools
+    );
 
     this.conversationHistory.push({
       role: 'assistant',
@@ -54,6 +68,62 @@ export class Agent {
     });
 
     return response.content;
+  }
+
+  /**
+   * Execute a tool by name with given parameters
+   */
+  async executeTool(
+    toolName: string,
+    params: Record<string, unknown>
+  ): Promise<ToolResult> {
+    const tool = this.tools.get(toolName);
+
+    if (!tool) {
+      return {
+        success: false,
+        error: 'Tool not found: ' + toolName,
+      };
+    }
+
+    return tool.execute(params);
+  }
+
+  /**
+   * Get list of available tool names
+   */
+  getAvailableTools(): string[] {
+    return Array.from(this.tools.keys());
+  }
+
+  /**
+   * Check if a tool is available
+   */
+  hasTool(toolName: string): boolean {
+    return this.tools.has(toolName);
+  }
+
+  /**
+   * Build system prompt including tool descriptions
+   */
+  private buildSystemPrompt(): string {
+    if (this.tools.size === 0) {
+      return this.systemPrompt;
+    }
+
+    const toolDescriptions = Array.from(this.tools.values())
+      .map((tool) => {
+        const params = tool.definition.parameters
+          .map((p) => {
+            const req = p.required ? ', required' : '';
+            return '  - ' + p.name + ' (' + p.type + req + '): ' + p.description;
+          })
+          .join('\n');
+        return '**' + tool.definition.name + '**: ' + tool.definition.description + '\nParameters:\n' + params;
+      })
+      .join('\n\n');
+
+    return this.systemPrompt + '\n\n## Available Tools\n\nYou have access to the following tools. To use a tool, respond with a tool call in this exact format:\n<tool_call>\n{"tool": "tool_name", "params": {"param1": "value1", "param2": "value2"}}\n</tool_call>\n\n' + toolDescriptions + '\n\nWhen you need to use a tool, output the tool_call block. The system will execute it and provide the result.';
   }
 
   /**
@@ -73,11 +143,12 @@ export class Agent {
   /**
    * Get agent info for logging/debugging
    */
-  getInfo(): { name: string; role: string; historyLength: number } {
+  getInfo(): { name: string; role: string; historyLength: number; toolCount: number } {
     return {
       name: this.name,
       role: this.role,
       historyLength: this.conversationHistory.length,
+      toolCount: this.tools.size,
     };
   }
 }
