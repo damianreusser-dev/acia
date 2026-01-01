@@ -2,36 +2,42 @@
 
 **Last Updated**: 2026-01-01
 
-## Current Phase: 1c - Agent Code Execution (NEXT)
+## Current Phase: 2 - Basic Team (NEXT)
 
-### Phase 1a - COMPLETED
+### Phase 1 - COMPLETED
+
+#### Phase 1a - Basic Agent Communication
 - [x] Project structure created
-- [x] TypeScript configuration
+- [x] TypeScript configuration with strict mode
 - [x] ESLint + Prettier setup
 - [x] Vitest test framework
 - [x] GitHub Actions CI pipeline
-- [x] Base Agent class
-- [x] LLM Client (Anthropic wrapper)
+- [x] Base Agent class with LLM integration
+- [x] LLMClient wrapper for Anthropic API
 - [x] Basic CLI with REPL
-- [x] Live LLM integration verified working
 
-### Phase 1b - COMPLETED
+#### Phase 1b - Agent File Operations
 - [x] Tool system architecture (ToolDefinition, ToolResult, Tool interface)
 - [x] ReadFileTool - Read files from workspace
 - [x] WriteFileTool - Write files with auto-directory creation
 - [x] ListDirectoryTool - List directory contents
 - [x] Sandbox security preventing directory traversal
-- [x] Agent.executeTool() method
-- [x] Tool descriptions in system prompt
-- [x] 16 unit tests for file tools
-- [x] 6 integration tests for Agent + file tools
-- [x] **Total: 37 tests passing**
 
-### Phase 1c - Agent Code Execution (Next)
-- [ ] Agent can write TypeScript/JavaScript code
-- [ ] Agent can run tests on written code
-- [ ] Agent receives test results and can iterate
-- [ ] Basic error handling and recovery
+#### Phase 1c - Agent Code Execution
+- [x] RunNpmScriptTool - Run allowed npm scripts
+- [x] RunTestFileTool - Run specific test files with vitest
+- [x] RunCodeTool - Execute TypeScript/JavaScript files
+- [x] processMessageWithTools() - Automatic tool execution loop
+- [x] parseToolCall() - Extract tool calls from LLM responses
+- [x] Max iteration protection against infinite loops
+- [x] **Total: 55 tests passing**
+
+### Phase 2 - Basic Team (Next)
+- [ ] PM Agent that coordinates work
+- [ ] Dev Agent that writes code
+- [ ] QA Agent that tests code
+- [ ] Task handoff between agents
+- [ ] Basic escalation when stuck
 
 ### Blocked
 None
@@ -41,17 +47,13 @@ None
 ## Recent Changes
 
 ### 2026-01-01
-- **Phase 1b COMPLETE**
-- Added Tool system with types and interfaces
-- Implemented file tools (read, write, list)
-- Added sandbox security for workspace isolation
-- Extended Agent with tool execution capabilities
-- Added comprehensive test coverage
-
-- **Phase 1a COMPLETE**
-- Initial project setup
-- Migrated from acia-legacy to fresh repository
-- Established development methodology (no vibe coding!)
+- **Phase 1 COMPLETE**
+- Implemented full agent tool system
+- Agent can now autonomously:
+  - Write files
+  - Execute code
+  - Run tests
+  - Iterate based on results
 
 ---
 
@@ -59,17 +61,18 @@ None
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| 2026-01-01 | Fresh start over legacy code | Old code was "vibe coded" without tests |
+| 2026-01-01 | Fresh start over legacy code | Old code was vibe coded without tests |
 | 2026-01-01 | TypeScript + Vitest | Type safety and modern testing |
 | 2026-01-01 | Phase 1a/1b/1c split | Smaller verifiable steps |
-| 2026-01-01 | Manual .env parsing | dotenv has issues with ESM + tsx watch |
-| 2026-01-01 | Tool system with interfaces | Extensible, testable design for future tools |
+| 2026-01-01 | Tool system with interfaces | Extensible, testable design |
+| 2026-01-01 | Tool execution loop in Agent | Enables autonomous multi-step tasks |
 
 ---
 
 ## Known Issues
 
-1. **CLI pipe input on Windows**: When piping input via echo "..." | npm run dev, readline closes unexpectedly. Works fine in interactive mode.
+1. **CLI pipe input on Windows**: Works fine in interactive mode.
+2. **Deprecation warning**: spawn with shell option - safe for our use case.
 
 ---
 
@@ -78,7 +81,7 @@ None
 | Metric | Target | Current |
 |--------|--------|---------|
 | Test Coverage | >80% | TBD |
-| Unit Tests | All pass | 31/31 |
+| Unit Tests | All pass | 49/49 |
 | Integration Tests | All pass | 6/6 |
-| Total Tests | All pass | 37/37 |
+| Total Tests | All pass | 55/55 |
 | CI Status | Passing | Passing |
