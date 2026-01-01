@@ -2,7 +2,7 @@
 
 **Last Updated**: 2026-01-01
 
-## Current Phase: 1b - Agent File Operations (NEXT)
+## Current Phase: 1c - Agent Code Execution (NEXT)
 
 ### Phase 1a - COMPLETED
 - [x] Project structure created
@@ -13,15 +13,25 @@
 - [x] Base Agent class
 - [x] LLM Client (Anthropic wrapper)
 - [x] Basic CLI with REPL
-- [x] Unit tests for Agent and LLMClient (11 tests passing)
 - [x] Live LLM integration verified working
 
-### Phase 1b - Agent File Operations (Next)
-- [ ] Agent can read files from disk
-- [ ] Agent can write files to disk
-- [ ] Agent can list directory contents
-- [ ] File operations are sandboxed to workspace
-- [ ] Integration tests for file operations
+### Phase 1b - COMPLETED
+- [x] Tool system architecture (ToolDefinition, ToolResult, Tool interface)
+- [x] ReadFileTool - Read files from workspace
+- [x] WriteFileTool - Write files with auto-directory creation
+- [x] ListDirectoryTool - List directory contents
+- [x] Sandbox security preventing directory traversal
+- [x] Agent.executeTool() method
+- [x] Tool descriptions in system prompt
+- [x] 16 unit tests for file tools
+- [x] 6 integration tests for Agent + file tools
+- [x] **Total: 37 tests passing**
+
+### Phase 1c - Agent Code Execution (Next)
+- [ ] Agent can write TypeScript/JavaScript code
+- [ ] Agent can run tests on written code
+- [ ] Agent receives test results and can iterate
+- [ ] Basic error handling and recovery
 
 ### Blocked
 None
@@ -31,14 +41,17 @@ None
 ## Recent Changes
 
 ### 2026-01-01
+- **Phase 1b COMPLETE**
+- Added Tool system with types and interfaces
+- Implemented file tools (read, write, list)
+- Added sandbox security for workspace isolation
+- Extended Agent with tool execution capabilities
+- Added comprehensive test coverage
+
 - **Phase 1a COMPLETE**
 - Initial project setup
 - Migrated from acia-legacy to fresh repository
 - Established development methodology (no vibe coding!)
-- Created base Agent and LLMClient classes
-- Set up CI/CD pipeline
-- Fixed ESM + tsx compatibility for env loading
-- Verified live LLM integration with Anthropic API
 
 ---
 
@@ -50,12 +63,13 @@ None
 | 2026-01-01 | TypeScript + Vitest | Type safety and modern testing |
 | 2026-01-01 | Phase 1a/1b/1c split | Smaller verifiable steps |
 | 2026-01-01 | Manual .env parsing | dotenv has issues with ESM + tsx watch |
+| 2026-01-01 | Tool system with interfaces | Extensible, testable design for future tools |
 
 ---
 
 ## Known Issues
 
-1. **CLI pipe input on Windows**: When piping input via `echo "..." | npm run dev`, readline closes unexpectedly. Works fine in interactive mode.
+1. **CLI pipe input on Windows**: When piping input via echo "..." | npm run dev, readline closes unexpectedly. Works fine in interactive mode.
 
 ---
 
@@ -64,5 +78,7 @@ None
 | Metric | Target | Current |
 |--------|--------|---------|
 | Test Coverage | >80% | TBD |
-| Unit Tests | All pass | 11/11 |
+| Unit Tests | All pass | 31/31 |
+| Integration Tests | All pass | 6/6 |
+| Total Tests | All pass | 37/37 |
 | CI Status | Passing | Passing |
