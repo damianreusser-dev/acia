@@ -6,12 +6,31 @@
  */
 
 import * as readline from 'readline';
-import { config } from 'dotenv';
+import * as path from 'path';
+import * as fs from 'fs';
 import { Agent } from '../agents/base/agent.js';
 import { LLMClient } from '../core/llm/client.js';
 
-// Load environment variables
-config();
+// Load environment variables manually (dotenv has issues with ESM + tsx)
+function loadEnv(): void {
+  const envPath = path.resolve(process.cwd(), '.env');
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, 'utf-8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        const eqIndex = trimmed.indexOf('=');
+        if (eqIndex > 0) {
+          const key = trimmed.substring(0, eqIndex).trim();
+          const value = trimmed.substring(eqIndex + 1).trim();
+          process.env[key] = value;
+        }
+      }
+    }
+  }
+}
+
+loadEnv();
 
 const SYSTEM_PROMPT = `You are a helpful AI assistant that is part of the ACIA system.
 You are currently in Phase 1 - a simple agent that can have conversations.
@@ -46,11 +65,26 @@ async function main(): Promise<void> {
     output: process.stdout,
   });
 
+  let isClosing = false;
+
+  rl.on('close', () => {
+    if (!isClosing) {
+      isClosing = true;
+      console.log('\nGoodbye!');
+      process.exit(0);
+    }
+  });
+
   const prompt = (): void => {
+    if (isClosing) return;
+
     rl.question('You: ', async (input) => {
+      if (isClosing) return;
+
       const trimmed = input.trim();
 
       if (trimmed.toLowerCase() === 'exit') {
+        isClosing = true;
         console.log('\nGoodbye!');
         rl.close();
         return;
