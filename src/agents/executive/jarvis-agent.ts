@@ -485,4 +485,18 @@ Company created to handle: ${company.domain}
     }
     return false;
   }
+
+  /**
+   * Handle a request - simplified interface for benchmarks
+   *
+   * This is a convenience method that wraps processRequest for benchmark testing.
+   * It returns a simplified response format with just success and output fields.
+   */
+  async handleRequest(request: string): Promise<{ success: boolean; output: string }> {
+    const result = await this.processRequest(request);
+    return {
+      success: result.success,
+      output: result.response,
+    };
+  }
 }

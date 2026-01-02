@@ -11,10 +11,17 @@ import { LLMClient } from '../core/llm/client.js';
 import { Tool } from '../core/tools/types.js';
 import { Task, TaskResult, createTask } from '../core/tasks/types.js';
 import { DevAgent } from '../agents/dev/dev-agent.js';
+import { FrontendDevAgent } from '../agents/dev/frontend-dev-agent.js';
+import { BackendDevAgent } from '../agents/dev/backend-dev-agent.js';
 import { QAAgent } from '../agents/qa/qa-agent.js';
 import { PMAgent, TaskBreakdown } from '../agents/pm/pm-agent.js';
 import { WikiService } from '../core/wiki/wiki-service.js';
 import { createWikiTools } from '../core/wiki/wiki-tools.js';
+
+/**
+ * Agent specialization types
+ */
+export type DevAgentType = 'general' | 'frontend' | 'backend';
 
 export interface TeamConfig {
   workspace: string;
@@ -41,6 +48,8 @@ export interface WorkflowResult {
 export class Team {
   private pmAgent: PMAgent;
   private devAgent: DevAgent;
+  private frontendDevAgent: FrontendDevAgent;
+  private backendDevAgent: BackendDevAgent;
   private qaAgent: QAAgent;
   private workspace: string;
   private wikiService?: WikiService;
@@ -83,17 +92,33 @@ export class Team {
       wikiService: config.wikiService, // For design-first development
     });
 
-    // Create Dev Agent with all tools + wiki tools
+    const devTools = [...config.tools, ...wikiTools];
+
+    // Create general Dev Agent with all tools + wiki tools
     this.devAgent = new DevAgent({
       llmClient: config.llmClient,
-      tools: [...config.tools, ...wikiTools],
+      tools: devTools,
+      workspace: config.workspace,
+    });
+
+    // Create specialized Frontend Dev Agent
+    this.frontendDevAgent = new FrontendDevAgent({
+      llmClient: config.llmClient,
+      tools: devTools,
+      workspace: config.workspace,
+    });
+
+    // Create specialized Backend Dev Agent
+    this.backendDevAgent = new BackendDevAgent({
+      llmClient: config.llmClient,
+      tools: devTools,
       workspace: config.workspace,
     });
 
     // Create QA Agent with all tools + wiki tools
     this.qaAgent = new QAAgent({
       llmClient: config.llmClient,
-      tools: [...config.tools, ...wikiTools],
+      tools: devTools,
       workspace: config.workspace,
     });
   }
@@ -341,11 +366,101 @@ export class Team {
   }
 
   /**
-   * Execute a task with the Dev agent
+   * Determine the appropriate dev agent type for a task
+   */
+  selectDevAgentType(task: Task): DevAgentType {
+    const title = task.title.toLowerCase();
+    const description = task.description.toLowerCase();
+    const context = task.context ?? {};
+
+    // Check for explicit agent type in context
+    if (context.agentType) {
+      const specifiedType = String(context.agentType).toLowerCase();
+      if (specifiedType === 'frontend') return 'frontend';
+      if (specifiedType === 'backend') return 'backend';
+    }
+
+    // Frontend keywords
+    const frontendKeywords = [
+      'react', 'component', 'tsx', 'jsx', 'ui', 'frontend',
+      'css', 'tailwind', 'styled', 'button', 'form', 'modal',
+      'page', 'layout', 'view', 'hook', 'state', 'props',
+      'dashboard', 'sidebar', 'navbar', 'header', 'footer',
+      'responsive', 'mobile', 'desktop', 'animation', 'transition',
+    ];
+
+    // Backend keywords
+    const backendKeywords = [
+      'api', 'endpoint', 'route', 'router', 'express', 'backend',
+      'server', 'database', 'db', 'model', 'schema', 'migration',
+      'middleware', 'authentication', 'auth', 'jwt', 'session',
+      'rest', 'graphql', 'controller', 'service', 'repository',
+      'query', 'mutation', 'resolver', 'handler', 'prisma', 'sql',
+    ];
+
+    const combined = `${title} ${description}`;
+
+    // Count keyword matches
+    let frontendScore = 0;
+    let backendScore = 0;
+
+    for (const keyword of frontendKeywords) {
+      if (combined.includes(keyword)) frontendScore++;
+    }
+
+    for (const keyword of backendKeywords) {
+      if (combined.includes(keyword)) backendScore++;
+    }
+
+    // File extension hints in task context
+    if (context.files) {
+      const files = Array.isArray(context.files) ? context.files : [context.files];
+      for (const file of files) {
+        const fileStr = String(file).toLowerCase();
+        if (fileStr.endsWith('.tsx') || fileStr.endsWith('.jsx') || fileStr.endsWith('.css')) {
+          frontendScore += 2;
+        }
+        if (fileStr.includes('route') || fileStr.includes('api') || fileStr.includes('server')) {
+          backendScore += 2;
+        }
+      }
+    }
+
+    // Return based on scores
+    if (frontendScore > backendScore && frontendScore >= 2) {
+      return 'frontend';
+    }
+    if (backendScore > frontendScore && backendScore >= 2) {
+      return 'backend';
+    }
+
+    // Default to general agent
+    return 'general';
+  }
+
+  /**
+   * Get the appropriate dev agent for a task
+   */
+  private getDevAgentForTask(task: Task): DevAgent | FrontendDevAgent | BackendDevAgent {
+    const agentType = this.selectDevAgentType(task);
+    switch (agentType) {
+      case 'frontend':
+        return this.frontendDevAgent;
+      case 'backend':
+        return this.backendDevAgent;
+      default:
+        return this.devAgent;
+    }
+  }
+
+  /**
+   * Execute a task with the appropriate Dev agent
    */
   private async executeDevTask(task: Task): Promise<TaskResult> {
     this.pmAgent.updateTaskStatus(task.id, 'in_progress');
-    return this.devAgent.executeTask(task);
+    const agent = this.getDevAgentForTask(task);
+    this.emitProgress(`Using ${agent.role} for: ${task.title}`, task);
+    return agent.executeTask(task);
   }
 
   /**
@@ -382,10 +497,24 @@ export class Team {
   }
 
   /**
-   * Get the Dev agent for direct interaction
+   * Get the general Dev agent for direct interaction
    */
   getDevAgent(): DevAgent {
     return this.devAgent;
+  }
+
+  /**
+   * Get the Frontend Dev agent for direct interaction
+   */
+  getFrontendDevAgent(): FrontendDevAgent {
+    return this.frontendDevAgent;
+  }
+
+  /**
+   * Get the Backend Dev agent for direct interaction
+   */
+  getBackendDevAgent(): BackendDevAgent {
+    return this.backendDevAgent;
   }
 
   /**

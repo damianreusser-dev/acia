@@ -438,4 +438,63 @@ describe('JarvisAgent', () => {
       expect(result.humanEscalationReason).toBe('Need human decision');
     });
   });
+
+  describe('handleRequest (benchmark interface)', () => {
+    it('should return simplified success response', async () => {
+      (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: 'ACTION: direct_response\nRESPONSE: Hello! How can I help you?',
+        stopReason: 'end_turn',
+        usage: { inputTokens: 100, outputTokens: 50 },
+      });
+
+      const result = await jarvisAgent.handleRequest('Hello');
+
+      expect(result.success).toBe(true);
+      expect(result.output).toContain('Hello');
+    });
+
+    it('should return simplified failure response', async () => {
+      (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('LLM Error'));
+
+      const result = await jarvisAgent.handleRequest('Error test');
+
+      expect(result.success).toBe(false);
+      expect(result.output).toContain('error');
+    });
+
+    it('should wrap processRequest with simple interface', async () => {
+      const mockCEO = {
+        executeGoal: vi.fn().mockResolvedValue({
+          success: true,
+          projects: [{ title: 'Completed', status: 'completed', priority: 'medium' }],
+          completedProjects: 1,
+          failedProjects: 0,
+          escalatedToHuman: false,
+        } as CEOResult),
+        getActiveProjects: vi.fn().mockReturnValue([]),
+      } as unknown as CEOAgent;
+
+      jarvisAgent.registerCompany({
+        id: 'test-co',
+        name: 'Test Co',
+        domain: 'Testing',
+        ceo: mockCEO,
+        createdAt: new Date(),
+        status: 'active',
+      });
+
+      (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: 'ACTION: delegate\nCOMPANY_ID: test-co',
+        stopReason: 'end_turn',
+        usage: { inputTokens: 100, outputTokens: 50 },
+      });
+
+      const result = await jarvisAgent.handleRequest('Do something');
+
+      expect(result).toHaveProperty('success');
+      expect(result).toHaveProperty('output');
+      expect(typeof result.success).toBe('boolean');
+      expect(typeof result.output).toBe('string');
+    });
+  });
 });

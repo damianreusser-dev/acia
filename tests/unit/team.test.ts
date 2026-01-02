@@ -444,6 +444,185 @@ EXECUTION_ORDER:
     });
   });
 
+  describe('specialized dev agents', () => {
+    it('should have frontend and backend dev agents', () => {
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+      });
+
+      expect(team.getFrontendDevAgent()).toBeDefined();
+      expect(team.getBackendDevAgent()).toBeDefined();
+      expect(team.getFrontendDevAgent().role).toBe('Frontend Developer');
+      expect(team.getBackendDevAgent().role).toBe('Backend Developer');
+    });
+
+    it('should give frontend dev agent all tools', () => {
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+      });
+
+      const frontendTools = team.getFrontendDevAgent().getAvailableTools();
+      expect(frontendTools).toContain('read_file');
+      expect(frontendTools).toContain('write_file');
+    });
+
+    it('should give backend dev agent all tools', () => {
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+      });
+
+      const backendTools = team.getBackendDevAgent().getAvailableTools();
+      expect(backendTools).toContain('read_file');
+      expect(backendTools).toContain('write_file');
+    });
+  });
+
+  describe('agent selection', () => {
+    let team: Team;
+
+    beforeEach(() => {
+      team = new Team({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+      });
+    });
+
+    it('should select frontend agent for React component tasks', () => {
+      const task = {
+        id: 'test-1',
+        type: 'implement' as const,
+        title: 'Create TodoList React component',
+        description: 'Create a React component for displaying todos',
+        status: 'pending' as const,
+        priority: 'medium' as const,
+        createdBy: 'test',
+        attempts: 0,
+        maxAttempts: 3,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      expect(team.selectDevAgentType(task)).toBe('frontend');
+    });
+
+    it('should select frontend agent for TSX file tasks', () => {
+      const task = {
+        id: 'test-2',
+        type: 'implement' as const,
+        title: 'Update header',
+        description: 'Update the header',
+        status: 'pending' as const,
+        priority: 'medium' as const,
+        createdBy: 'test',
+        attempts: 0,
+        maxAttempts: 3,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        context: { files: ['src/components/Header.tsx'] },
+      };
+
+      expect(team.selectDevAgentType(task)).toBe('frontend');
+    });
+
+    it('should select backend agent for API endpoint tasks', () => {
+      const task = {
+        id: 'test-3',
+        type: 'implement' as const,
+        title: 'Create API endpoint for users',
+        description: 'Create a REST API endpoint to get user data',
+        status: 'pending' as const,
+        priority: 'medium' as const,
+        createdBy: 'test',
+        attempts: 0,
+        maxAttempts: 3,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      expect(team.selectDevAgentType(task)).toBe('backend');
+    });
+
+    it('should select backend agent for Express route tasks', () => {
+      const task = {
+        id: 'test-4',
+        type: 'implement' as const,
+        title: 'Add new route',
+        description: 'Add express router for authentication',
+        status: 'pending' as const,
+        priority: 'medium' as const,
+        createdBy: 'test',
+        attempts: 0,
+        maxAttempts: 3,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      expect(team.selectDevAgentType(task)).toBe('backend');
+    });
+
+    it('should select backend agent for database tasks', () => {
+      const task = {
+        id: 'test-5',
+        type: 'implement' as const,
+        title: 'Create user model',
+        description: 'Create database model and schema for users',
+        status: 'pending' as const,
+        priority: 'medium' as const,
+        createdBy: 'test',
+        attempts: 0,
+        maxAttempts: 3,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      expect(team.selectDevAgentType(task)).toBe('backend');
+    });
+
+    it('should respect explicit agent type in context', () => {
+      const task = {
+        id: 'test-6',
+        type: 'implement' as const,
+        title: 'Create something',
+        description: 'Create something generic',
+        status: 'pending' as const,
+        priority: 'medium' as const,
+        createdBy: 'test',
+        attempts: 0,
+        maxAttempts: 3,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        context: { agentType: 'frontend' },
+      };
+
+      expect(team.selectDevAgentType(task)).toBe('frontend');
+    });
+
+    it('should default to general agent for ambiguous tasks', () => {
+      const task = {
+        id: 'test-7',
+        type: 'implement' as const,
+        title: 'Create utility function',
+        description: 'Create a helper function',
+        status: 'pending' as const,
+        priority: 'medium' as const,
+        createdBy: 'test',
+        attempts: 0,
+        maxAttempts: 3,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      expect(team.selectDevAgentType(task)).toBe('general');
+    });
+  });
+
   describe('iteration loop', () => {
     it('should create fix tasks when QA fails', async () => {
       let callCount = 0;

@@ -63,6 +63,27 @@ export interface CEOResult {
   humanEscalationReason?: string;
 }
 
+/**
+ * Multi-team project assignment
+ */
+export interface TeamAssignment {
+  teamName: string;
+  projects: Project[];
+}
+
+/**
+ * Result from multi-team goal execution
+ */
+export interface MultiTeamResult {
+  success: boolean;
+  teamResults: Map<string, CEOResult>;
+  totalProjects: number;
+  totalCompleted: number;
+  totalFailed: number;
+  escalatedToHuman: boolean;
+  humanEscalationReason?: string;
+}
+
 export class CEOAgent extends Agent {
   private wikiService?: WikiService;
   private activeProjects: Map<string, Project> = new Map();
@@ -358,5 +379,318 @@ ${projects.map((p) => `- ${p.title}: ${p.status} (${p.priority})`).join('\n')}
    */
   getTeams(): string[] {
     return Array.from(this.teams.keys());
+  }
+
+  /**
+   * Execute a goal across multiple teams
+   * Analyzes the goal and assigns work to appropriate teams
+   */
+  async executeGoalMultiTeam(goal: string): Promise<MultiTeamResult> {
+    if (this.teams.size === 0) {
+      return {
+        success: false,
+        teamResults: new Map(),
+        totalProjects: 0,
+        totalCompleted: 0,
+        totalFailed: 0,
+        escalatedToHuman: true,
+        humanEscalationReason: 'No teams registered',
+      };
+    }
+
+    // Plan projects and assign to teams
+    const assignments = await this.planAndAssignProjects(goal);
+
+    // Execute projects in parallel across teams
+    const teamResults = new Map<string, CEOResult>();
+    let totalProjects = 0;
+    let totalCompleted = 0;
+    let totalFailed = 0;
+    let escalatedToHuman = false;
+    let humanEscalationReason: string | undefined;
+
+    // Execute all team assignments in parallel
+    const teamPromises = assignments.map(async (assignment) => {
+      const team = this.teams.get(assignment.teamName);
+      if (!team) {
+        return {
+          teamName: assignment.teamName,
+          result: {
+            success: false,
+            projects: assignment.projects,
+            completedProjects: 0,
+            failedProjects: assignment.projects.length,
+            escalatedToHuman: true,
+            humanEscalationReason: `Team "${assignment.teamName}" not found`,
+          } as CEOResult,
+        };
+      }
+
+      // Execute each project for this team sequentially
+      let completedProjects = 0;
+      let failedProjects = 0;
+
+      for (const project of assignment.projects) {
+        this.activeProjects.set(project.id, project);
+        project.status = 'in_progress';
+
+        try {
+          const result = await team.executeTask(project.description, project.priority);
+          project.result = result;
+
+          if (result.success) {
+            project.status = 'completed';
+            project.completedAt = new Date();
+            completedProjects++;
+          } else {
+            project.status = 'completed';
+            project.completedAt = new Date();
+            failedProjects++;
+          }
+        } catch (error) {
+          project.status = 'blocked';
+          failedProjects++;
+        }
+      }
+
+      return {
+        teamName: assignment.teamName,
+        result: {
+          success: failedProjects === 0,
+          projects: assignment.projects,
+          completedProjects,
+          failedProjects,
+          escalatedToHuman: false,
+        } as CEOResult,
+      };
+    });
+
+    // Wait for all teams to complete
+    const results = await Promise.all(teamPromises);
+
+    // Aggregate results
+    for (const { teamName, result } of results) {
+      teamResults.set(teamName, result);
+      totalProjects += result.projects.length;
+      totalCompleted += result.completedProjects;
+      totalFailed += result.failedProjects;
+
+      if (result.escalatedToHuman) {
+        escalatedToHuman = true;
+        humanEscalationReason = result.humanEscalationReason;
+      }
+    }
+
+    // Log to wiki if available
+    if (this.wikiService) {
+      await this.logMultiTeamGoalCompletion(goal, teamResults, totalCompleted, totalFailed);
+    }
+
+    return {
+      success: totalFailed === 0 && !escalatedToHuman,
+      teamResults,
+      totalProjects,
+      totalCompleted,
+      totalFailed,
+      escalatedToHuman,
+      humanEscalationReason,
+    };
+  }
+
+  /**
+   * Plan projects and assign them to appropriate teams
+   */
+  private async planAndAssignProjects(goal: string): Promise<TeamAssignment[]> {
+    const teamNames = this.getTeams();
+    const prompt = this.buildMultiTeamPlanningPrompt(goal, teamNames);
+    const response = await this.processMessageWithTools(prompt);
+    return this.parseTeamAssignments(response, goal, teamNames);
+  }
+
+  /**
+   * Build prompt for multi-team planning
+   */
+  private buildMultiTeamPlanningPrompt(goal: string, teamNames: string[]): string {
+    let prompt = `## Strategic Goal\n\n${goal}\n\n`;
+    prompt += `You have access to the following teams:\n`;
+    for (const name of teamNames) {
+      prompt += `- ${name}\n`;
+    }
+    prompt += `\nPlease analyze this goal and assign projects to appropriate teams.\n\n`;
+    prompt += `For each team, list the projects they should work on:\n\n`;
+    prompt += `TEAM_ASSIGNMENTS:\n`;
+    prompt += `TEAM: [TeamName]\n`;
+    prompt += `1. [Title] | [Priority: low/medium/high/critical] | [Description]\n`;
+    prompt += `2. [Title] | [Priority] | [Description]\n\n`;
+    prompt += `TEAM: [AnotherTeam]\n`;
+    prompt += `1. [Title] | [Priority] | [Description]\n\n`;
+    prompt += `Assign work based on team specialization. For example:\n`;
+    prompt += `- Frontend teams should handle UI, React components, CSS\n`;
+    prompt += `- Backend teams should handle APIs, database, server logic\n`;
+    return prompt;
+  }
+
+  /**
+   * Parse team assignments from LLM response
+   */
+  private parseTeamAssignments(
+    response: string,
+    goal: string,
+    availableTeams: string[]
+  ): TeamAssignment[] {
+    const assignments: TeamAssignment[] = [];
+    const teamProjectsMap = new Map<string, Project[]>();
+
+    // Initialize map for all teams
+    for (const team of availableTeams) {
+      teamProjectsMap.set(team, []);
+    }
+
+    // Look for TEAM_ASSIGNMENTS section
+    const assignmentsMatch = response.match(/TEAM_ASSIGNMENTS:?\s*([\s\S]*?)$/i);
+    if (assignmentsMatch && assignmentsMatch[1]) {
+      const content = assignmentsMatch[1];
+
+      // Find all TEAM: blocks
+      const teamBlocks = content.split(/TEAM:\s*/i).filter((b) => b.trim());
+
+      for (const block of teamBlocks) {
+        const lines = block.split('\n');
+        const teamNameLine = lines[0]?.trim() ?? '';
+
+        // Find matching team (case-insensitive)
+        let matchedTeam: string | undefined;
+        for (const availTeam of availableTeams) {
+          if (teamNameLine.toLowerCase().includes(availTeam.toLowerCase())) {
+            matchedTeam = availTeam;
+            break;
+          }
+        }
+
+        if (!matchedTeam) continue;
+
+        // Parse projects for this team
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i] ?? '';
+          const match = line.match(/\d+\.\s*\[?([^\]|]+)\]?\s*\|\s*\[?(?:Priority:\s*)?([^\]|]+)\]?\s*\|\s*(.+)/i);
+
+          if (match && match[1] && match[2] && match[3]) {
+            const priorityStr = match[2].trim().toLowerCase();
+            const priority = ['low', 'medium', 'high', 'critical'].includes(priorityStr)
+              ? (priorityStr as 'low' | 'medium' | 'high' | 'critical')
+              : 'medium';
+
+            const projects = teamProjectsMap.get(matchedTeam) ?? [];
+            projects.push({
+              id: `proj_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`,
+              title: match[1].trim(),
+              description: match[3].trim(),
+              priority,
+              status: 'pending',
+              createdAt: new Date(),
+            });
+            teamProjectsMap.set(matchedTeam, projects);
+          }
+        }
+      }
+    }
+
+    // Build assignments from map
+    for (const [teamName, projects] of teamProjectsMap) {
+      if (projects.length > 0) {
+        assignments.push({ teamName, projects });
+      }
+    }
+
+    // If no projects parsed, assign a single project to the first team
+    if (assignments.length === 0 && availableTeams.length > 0 && availableTeams[0]) {
+      assignments.push({
+        teamName: availableTeams[0],
+        projects: [{
+          id: `proj_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`,
+          title: goal.substring(0, 50),
+          description: goal,
+          priority: 'medium',
+          status: 'pending',
+          createdAt: new Date(),
+        }],
+      });
+    }
+
+    return assignments;
+  }
+
+  /**
+   * Log multi-team goal completion to wiki
+   */
+  private async logMultiTeamGoalCompletion(
+    goal: string,
+    teamResults: Map<string, CEOResult>,
+    totalCompleted: number,
+    totalFailed: number
+  ): Promise<void> {
+    if (!this.wikiService) return;
+
+    const timestamp = new Date().toISOString();
+    let content = `
+## Multi-Team Goal: ${goal.substring(0, 100)}
+
+**Completed**: ${timestamp}
+**Total Succeeded**: ${totalCompleted}
+**Total Failed**: ${totalFailed}
+
+### Team Results
+`;
+
+    for (const [teamName, result] of teamResults) {
+      content += `
+#### ${teamName}
+- Projects: ${result.projects.length}
+- Completed: ${result.completedProjects}
+- Failed: ${result.failedProjects}
+${result.projects.map((p) => `  - ${p.title}: ${p.status}`).join('\n')}
+`;
+    }
+
+    content += `
+---
+`;
+
+    await this.wikiService.appendToPage('executive/multi-team-goals-log.md', content);
+  }
+
+  /**
+   * Get coordination status across all teams
+   */
+  getCoordinationStatus(): {
+    teamsCount: number;
+    activeProjectsCount: number;
+    projectsByTeam: Map<string, number>;
+    projectsByStatus: Record<string, number>;
+  } {
+    const projectsByStatus: Record<string, number> = {
+      pending: 0,
+      in_progress: 0,
+      completed: 0,
+      blocked: 0,
+    };
+
+    for (const project of this.activeProjects.values()) {
+      const current = projectsByStatus[project.status] ?? 0;
+      projectsByStatus[project.status] = current + 1;
+    }
+
+    // This is a simplified count - in a real system we'd track which team owns each project
+    const projectsByTeam = new Map<string, number>();
+    for (const teamName of this.teams.keys()) {
+      projectsByTeam.set(teamName, 0);
+    }
+
+    return {
+      teamsCount: this.teams.size,
+      activeProjectsCount: this.activeProjects.size,
+      projectsByTeam,
+      projectsByStatus,
+    };
   }
 }

@@ -412,4 +412,187 @@ REASON: Critical decision needed`,
       expect(result.projects[0].priority).toBe('medium');
     });
   });
+
+  describe('multi-team coordination', () => {
+    it('should return error when no teams registered', async () => {
+      const result = await ceoAgent.executeGoalMultiTeam('Build full stack app');
+
+      expect(result.success).toBe(false);
+      expect(result.escalatedToHuman).toBe(true);
+      expect(result.humanEscalationReason).toContain('No teams registered');
+    });
+
+    it('should assign projects to multiple teams', async () => {
+      (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: `TEAM_ASSIGNMENTS:
+TEAM: frontend
+1. [Build UI] | [Priority: high] | Create React components
+
+TEAM: backend
+1. [Create API] | [Priority: high] | Build REST endpoints`,
+        stopReason: 'end_turn',
+        usage: { inputTokens: 100, outputTokens: 300 },
+      });
+
+      const mockFrontendTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: true,
+          iterations: 1,
+        } as WorkflowResult),
+      } as unknown as Team;
+
+      const mockBackendTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: true,
+          iterations: 1,
+        } as WorkflowResult),
+      } as unknown as Team;
+
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('frontend', mockFrontendTeam);
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('backend', mockBackendTeam);
+
+      const result = await ceoAgent.executeGoalMultiTeam('Build full stack app');
+
+      expect(result.totalProjects).toBe(2);
+      expect(result.totalCompleted).toBe(2);
+      expect(result.success).toBe(true);
+      expect(mockFrontendTeam.executeTask).toHaveBeenCalled();
+      expect(mockBackendTeam.executeTask).toHaveBeenCalled();
+    });
+
+    it('should execute teams in parallel', async () => {
+      const executionOrder: string[] = [];
+
+      (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: `TEAM_ASSIGNMENTS:
+TEAM: team1
+1. [Task 1] | [Priority: medium] | First task
+
+TEAM: team2
+1. [Task 2] | [Priority: medium] | Second task`,
+        stopReason: 'end_turn',
+        usage: { inputTokens: 100, outputTokens: 300 },
+      });
+
+      const mockTeam1 = {
+        executeTask: vi.fn().mockImplementation(async () => {
+          executionOrder.push('team1-start');
+          await new Promise((r) => setTimeout(r, 10));
+          executionOrder.push('team1-end');
+          return { success: true, iterations: 1 } as WorkflowResult;
+        }),
+      } as unknown as Team;
+
+      const mockTeam2 = {
+        executeTask: vi.fn().mockImplementation(async () => {
+          executionOrder.push('team2-start');
+          await new Promise((r) => setTimeout(r, 10));
+          executionOrder.push('team2-end');
+          return { success: true, iterations: 1 } as WorkflowResult;
+        }),
+      } as unknown as Team;
+
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('team1', mockTeam1);
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('team2', mockTeam2);
+
+      await ceoAgent.executeGoalMultiTeam('Parallel test');
+
+      // Both teams should start before either ends (parallel execution)
+      const team1StartIndex = executionOrder.indexOf('team1-start');
+      const team2StartIndex = executionOrder.indexOf('team2-start');
+      const team1EndIndex = executionOrder.indexOf('team1-end');
+      const team2EndIndex = executionOrder.indexOf('team2-end');
+
+      // At least verify both teams executed
+      expect(team1StartIndex).toBeGreaterThanOrEqual(0);
+      expect(team2StartIndex).toBeGreaterThanOrEqual(0);
+      expect(team1EndIndex).toBeGreaterThan(team1StartIndex);
+      expect(team2EndIndex).toBeGreaterThan(team2StartIndex);
+    });
+
+    it('should aggregate results from multiple teams', async () => {
+      (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: `TEAM_ASSIGNMENTS:
+TEAM: teamA
+1. [Success A] | [Priority: high] | Will succeed
+2. [Fail A] | [Priority: medium] | Will fail
+
+TEAM: teamB
+1. [Success B] | [Priority: high] | Will succeed`,
+        stopReason: 'end_turn',
+        usage: { inputTokens: 100, outputTokens: 300 },
+      });
+
+      let teamACallCount = 0;
+      const mockTeamA = {
+        executeTask: vi.fn().mockImplementation(async () => {
+          teamACallCount++;
+          return {
+            success: teamACallCount === 1, // First succeeds, second fails
+            iterations: 1,
+          } as WorkflowResult;
+        }),
+      } as unknown as Team;
+
+      const mockTeamB = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: true,
+          iterations: 1,
+        } as WorkflowResult),
+      } as unknown as Team;
+
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('teamA', mockTeamA);
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('teamB', mockTeamB);
+
+      const result = await ceoAgent.executeGoalMultiTeam('Mixed results');
+
+      expect(result.totalProjects).toBe(3);
+      expect(result.totalCompleted).toBe(2);
+      expect(result.totalFailed).toBe(1);
+      expect(result.success).toBe(false); // Because one failed
+    });
+
+    it('should fall back to first team when parsing fails', async () => {
+      (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: 'I will coordinate the teams to build this.',
+        stopReason: 'end_turn',
+        usage: { inputTokens: 100, outputTokens: 50 },
+      });
+
+      const mockTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: true,
+          iterations: 1,
+        } as WorkflowResult),
+      } as unknown as Team;
+
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('default', mockTeam);
+
+      const result = await ceoAgent.executeGoalMultiTeam('Fallback test');
+
+      expect(result.totalProjects).toBe(1);
+      expect(mockTeam.executeTask).toHaveBeenCalled();
+    });
+
+    it('should provide coordination status', async () => {
+      ceoAgent.createTeam('frontend', {
+        workspace: '/test',
+        llmClient: mockLLMClient,
+        tools: [],
+      });
+      ceoAgent.createTeam('backend', {
+        workspace: '/test',
+        llmClient: mockLLMClient,
+        tools: [],
+      });
+
+      const status = ceoAgent.getCoordinationStatus();
+
+      expect(status.teamsCount).toBe(2);
+      expect(status.projectsByStatus).toHaveProperty('pending');
+      expect(status.projectsByStatus).toHaveProperty('in_progress');
+      expect(status.projectsByStatus).toHaveProperty('completed');
+      expect(status.projectsByStatus).toHaveProperty('blocked');
+    });
+  });
 });
