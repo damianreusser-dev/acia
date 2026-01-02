@@ -80,6 +80,7 @@ export class Team {
       tools: pmTools,
       workspace: config.workspace,
       maxRetries: config.maxRetries,
+      wikiService: config.wikiService, // For design-first development
     });
 
     // Create Dev Agent with all tools + wiki tools

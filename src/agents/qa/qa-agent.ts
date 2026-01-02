@@ -132,16 +132,34 @@ export class QAAgent extends Agent {
     const failures = failMatch && failMatch[1] ? parseInt(failMatch[1], 10) : 0;
     const total = totalMatch && totalMatch[1] ? parseInt(totalMatch[1], 10) : passed + failures;
 
-    // Also check for success/failure keywords
+    // Check for success/failure keywords (more comprehensive)
     const lowerResponse = response.toLowerCase();
+
+    // Success indicators - various formats the LLM might use
     const hasPassIndicator =
       lowerResponse.includes('all tests pass') ||
       lowerResponse.includes('tests passed') ||
+      lowerResponse.includes('verification passed') ||
+      lowerResponse.includes('all checks pass') ||
+      lowerResponse.includes('✅ pass') ||
+      lowerResponse.includes('status: ✅') ||
+      lowerResponse.includes('approved') ||
+      lowerResponse.includes('success rate: 100%') ||
+      lowerResponse.includes('tests failed: 0') ||
+      lowerResponse.includes('0 failed') ||
+      response.includes('✅ ALL TESTS PASSED') ||
+      response.includes('✅ PASS') ||
       (passed > 0 && failures === 0);
+
+    // Failure indicators
     const hasFailIndicator =
       lowerResponse.includes('test failed') ||
       lowerResponse.includes('tests failed') ||
-      failures > 0;
+      lowerResponse.includes('verification failed') ||
+      lowerResponse.includes('❌ fail') ||
+      lowerResponse.includes('status: ❌') ||
+      lowerResponse.includes('rejected') ||
+      (failures > 0);
 
     return {
       total: total || (hasPassIndicator || hasFailIndicator ? 1 : 0),

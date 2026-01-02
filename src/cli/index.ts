@@ -2,14 +2,17 @@
  * ACIA CLI - Command Line Interface
  *
  * Entry point for interacting with the ACIA system.
- * Phase 1: Simple REPL for chatting with a single agent.
+ * Uses Jarvis as the universal agent for handling all requests.
  */
 
 import * as readline from 'readline';
 import * as path from 'path';
 import * as fs from 'fs';
-import { Agent } from '../agents/base/agent.js';
+import { JarvisAgent } from '../agents/executive/jarvis-agent.js';
 import { LLMClient } from '../core/llm/client.js';
+import { WikiService } from '../core/wiki/wiki-service.js';
+import { createFileTools } from '../core/tools/file-tools.js';
+import { createExecTools } from '../core/tools/exec-tools.js';
 
 // Load environment variables manually (dotenv has issues with ESM + tsx)
 function loadEnv(): void {
@@ -32,10 +35,6 @@ function loadEnv(): void {
 
 loadEnv();
 
-const SYSTEM_PROMPT = `You are a helpful AI assistant that is part of the ACIA system.
-You are currently in Phase 1 - a simple agent that can have conversations.
-Be concise and helpful in your responses.`;
-
 async function main(): Promise<void> {
   const apiKey = process.env['ANTHROPIC_API_KEY'];
 
@@ -45,20 +44,62 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const llmClient = new LLMClient({ apiKey });
+  // Determine workspace (current directory or specified)
+  const workspace = process.cwd();
+  const wikiRoot = path.join(workspace, '.acia-wiki');
 
-  const agent = new Agent({
-    name: 'Assistant',
-    role: 'General Assistant',
-    systemPrompt: SYSTEM_PROMPT,
-    llmClient,
+  // Initialize LLM client
+  const llmClient = new LLMClient({
+    apiKey,
+    model: 'claude-sonnet-4-20250514',
+    maxTokens: 4096,
   });
 
-  console.log('='.repeat(50));
-  console.log('ACIA - Autonomous Company Intelligence Architecture');
-  console.log('Phase 1a: Basic Agent Communication');
-  console.log('='.repeat(50));
-  console.log('Type your message and press Enter. Type "exit" to quit.\n');
+  // Initialize wiki service
+  let wikiService: WikiService | undefined;
+  try {
+    if (!fs.existsSync(wikiRoot)) {
+      fs.mkdirSync(wikiRoot, { recursive: true });
+    }
+    wikiService = new WikiService({ wikiRoot });
+    await wikiService.initialize();
+  } catch (error) {
+    console.warn('Warning: Could not initialize wiki service');
+  }
+
+  // Create tools for the workspace
+  const fileTools = createFileTools(workspace);
+  const execTools = createExecTools(workspace, ['test', 'build', 'typecheck', 'lint', 'dev']);
+
+  // Initialize Jarvis
+  const jarvis = new JarvisAgent({
+    llmClient,
+    tools: [...fileTools, ...execTools],
+    wikiService,
+  });
+
+  // Set up escalation handler
+  jarvis.setHumanEscalationHandler((reason, _context) => {
+    console.log('\n⚠️  HUMAN INPUT REQUIRED');
+    console.log('─'.repeat(50));
+    console.log(`Reason: ${reason}`);
+    console.log('─'.repeat(50));
+  });
+
+  console.log('═'.repeat(60));
+  console.log('  ACIA - Autonomous Company Intelligence Architecture');
+  console.log('═'.repeat(60));
+  console.log(`Workspace: ${workspace}`);
+  console.log(`Wiki: ${wikiService ? wikiRoot : 'disabled'}`);
+  console.log('');
+  console.log('Commands:');
+  console.log('  /status  - Show system status');
+  console.log('  /clear   - Clear conversation');
+  console.log('  /exit    - Exit');
+  console.log('');
+  console.log('Type your request and press Enter.');
+  console.log('─'.repeat(60));
+  console.log('');
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -83,10 +124,41 @@ async function main(): Promise<void> {
 
       const trimmed = input.trim();
 
-      if (trimmed.toLowerCase() === 'exit') {
+      // Handle commands
+      if (trimmed.toLowerCase() === '/exit' || trimmed.toLowerCase() === 'exit') {
         isClosing = true;
         console.log('\nGoodbye!');
         rl.close();
+        return;
+      }
+
+      if (trimmed.toLowerCase() === '/status') {
+        const companies = jarvis.getCompanies();
+        console.log('\n📊 System Status');
+        console.log('─'.repeat(40));
+        console.log(`Companies: ${companies.length}`);
+        if (companies.length > 0) {
+          companies.forEach((c) => {
+            console.log(`  - ${c.name} (${c.status}): ${c.domain}`);
+            const projects = c.ceo.getActiveProjects();
+            if (projects.length > 0) {
+              projects.forEach((p) => {
+                console.log(`    └─ ${p.title} [${p.status}]`);
+              });
+            }
+          });
+        }
+        const conversation = jarvis.getConversation();
+        console.log(`Conversation: ${conversation.length} messages`);
+        console.log('');
+        prompt();
+        return;
+      }
+
+      if (trimmed.toLowerCase() === '/clear') {
+        jarvis.clearConversation();
+        console.log('Conversation cleared.\n');
+        prompt();
         return;
       }
 
@@ -95,11 +167,42 @@ async function main(): Promise<void> {
         return;
       }
 
+      console.log('');
+      console.log('🤖 Processing...');
+
       try {
-        const response = await agent.processMessage(trimmed);
-        console.log(`\nAgent: ${response}\n`);
+        const startTime = Date.now();
+        const result = await jarvis.processRequest(trimmed);
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+        console.log('');
+        if (result.success) {
+          console.log('✅ Success');
+        } else {
+          console.log('❌ Failed');
+        }
+
+        if (result.newCompanyCreated) {
+          console.log('🏢 New company created');
+        }
+
+        if (result.delegatedTo) {
+          console.log(`📋 Delegated to: ${result.delegatedTo}`);
+        }
+
+        if (result.escalatedToHuman) {
+          console.log(`⚠️  Escalated: ${result.humanEscalationReason}`);
+        }
+
+        console.log(`⏱️  ${elapsed}s`);
+        console.log('');
+        console.log('─'.repeat(40));
+        console.log(result.response);
+        console.log('─'.repeat(40));
+        console.log('');
       } catch (error) {
-        console.error('\nError:', error instanceof Error ? error.message : 'Unknown error');
+        console.error('\n❌ Error:', error instanceof Error ? error.message : 'Unknown error');
+        console.log('');
       }
 
       prompt();

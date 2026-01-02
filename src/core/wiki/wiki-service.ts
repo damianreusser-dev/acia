@@ -193,7 +193,8 @@ export class WikiService {
 
       const lines = page.content.split('\n');
       for (let i = 0; i < lines.length; i++) {
-        if (lines[i].toLowerCase().includes(queryLower)) {
+        const line = lines[i];
+        if (line && line.toLowerCase().includes(queryLower)) {
           // Create snippet with context
           const start = Math.max(0, i - 1);
           const end = Math.min(lines.length, i + 2);

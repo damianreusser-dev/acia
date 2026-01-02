@@ -3,12 +3,14 @@
  *
  * Coordinates work between Dev and QA agents.
  * Breaks down tasks, assigns work, and handles escalations.
+ * Creates design docs before planning (Design-First Development).
  */
 
 import { Agent, AgentConfig } from '../base/agent.js';
 import { Task, TaskResult, TaskStatus, createTask } from '../../core/tasks/types.js';
 import { Tool } from '../../core/tools/types.js';
 import { LLMClient } from '../../core/llm/client.js';
+import { WikiService } from '../../core/wiki/wiki-service.js';
 
 const PM_SYSTEM_PROMPT = `You are a Project Manager Agent in an autonomous software development team.
 
@@ -43,17 +45,29 @@ export interface PMAgentConfig {
   tools: Tool[];
   workspace: string;
   maxRetries?: number;
+  wikiService?: WikiService; // Optional wiki for design docs
+}
+
+export interface DesignDoc {
+  path: string; // Wiki path
+  title: string;
+  overview: string;
+  requirements: string[];
+  approach: string;
+  acceptanceCriteria: string[];
 }
 
 export interface TaskBreakdown {
   devTasks: Task[];
   qaTasks: Task[];
   order: Array<{ agent: 'dev' | 'qa'; taskId: string }>;
+  designDoc?: DesignDoc; // Reference to design doc if created
 }
 
 export class PMAgent extends Agent {
   private workspace: string;
   private maxRetries: number;
+  private wikiService?: WikiService;
   private activeTasks: Map<string, Task> = new Map();
 
   constructor(config: PMAgentConfig) {
@@ -67,24 +81,168 @@ export class PMAgent extends Agent {
     super(agentConfig);
     this.workspace = config.workspace;
     this.maxRetries = config.maxRetries ?? 3;
+    this.wikiService = config.wikiService;
+  }
+
+  /**
+   * Create a design document for a task before planning
+   * Design-First Development: think before coding
+   */
+  async createDesignDoc(task: Task): Promise<DesignDoc | null> {
+    if (!this.wikiService) {
+      return null; // No wiki, skip design doc
+    }
+
+    const prompt = this.buildDesignPrompt(task);
+    const response = await this.processMessageWithTools(prompt);
+
+    // Parse the design doc from LLM response
+    const designDoc = this.parseDesignDoc(response, task);
+
+    // Write to wiki
+    const wikiContent = this.formatDesignDocForWiki(designDoc);
+    await this.wikiService.writePage(designDoc.path, {
+      title: designDoc.title,
+      content: wikiContent,
+    });
+
+    return designDoc;
+  }
+
+  /**
+   * Build prompt for design doc creation
+   */
+  private buildDesignPrompt(task: Task): string {
+    let prompt = `## Create Design Document for: ${task.title}\n\n`;
+    prompt += `**Description**: ${task.description}\n`;
+    prompt += `**Priority**: ${task.priority}\n\n`;
+
+    if (task.context) {
+      prompt += `**Additional Context**:\n${JSON.stringify(task.context, null, 2)}\n\n`;
+    }
+
+    prompt += `Before we implement this task, create a design document.\n`;
+    prompt += `Think through what needs to be built, why, and how.\n\n`;
+    prompt += `Please provide your analysis in this format:\n\n`;
+    prompt += `OVERVIEW:\n[1-2 sentence summary of what we're building]\n\n`;
+    prompt += `REQUIREMENTS:\n- Requirement 1\n- Requirement 2\n\n`;
+    prompt += `APPROACH:\n[How we'll implement this - key decisions, patterns, components]\n\n`;
+    prompt += `ACCEPTANCE_CRITERIA:\n- [ ] Criterion 1\n- [ ] Criterion 2\n`;
+
+    return prompt;
+  }
+
+  /**
+   * Parse design doc from LLM response
+   */
+  private parseDesignDoc(response: string, task: Task): DesignDoc {
+    // Generate a safe filename from task title
+    const safeTitle = task.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/-+/g, '-')
+      .substring(0, 50);
+    const timestamp = Date.now();
+    const path = `designs/${safeTitle}-${timestamp}`;
+
+    // Parse OVERVIEW section
+    const overviewMatch = response.match(/OVERVIEW:?\s*([\s\S]*?)(?=REQUIREMENTS:|APPROACH:|ACCEPTANCE|$)/i);
+    const overview = overviewMatch && overviewMatch[1] ? overviewMatch[1].trim() : task.description;
+
+    // Parse REQUIREMENTS section
+    const requirements: string[] = [];
+    const reqMatch = response.match(/REQUIREMENTS:?\s*([\s\S]*?)(?=OVERVIEW:|APPROACH:|ACCEPTANCE|$)/i);
+    if (reqMatch && reqMatch[1]) {
+      const reqLines = reqMatch[1].match(/[-*]\s*(.+)/g);
+      if (reqLines) {
+        for (const line of reqLines) {
+          const match = line.match(/[-*]\s*(.+)/);
+          if (match && match[1]) {
+            requirements.push(match[1].trim());
+          }
+        }
+      }
+    }
+
+    // Parse APPROACH section
+    const approachMatch = response.match(/APPROACH:?\s*([\s\S]*?)(?=OVERVIEW:|REQUIREMENTS:|ACCEPTANCE|$)/i);
+    const approach = approachMatch && approachMatch[1] ? approachMatch[1].trim() : '';
+
+    // Parse ACCEPTANCE_CRITERIA section
+    const acceptanceCriteria: string[] = [];
+    const acMatch = response.match(/ACCEPTANCE[_\s]?CRITERIA:?\s*([\s\S]*?)(?=OVERVIEW:|REQUIREMENTS:|APPROACH:|$)/i);
+    if (acMatch && acMatch[1]) {
+      const acLines = acMatch[1].match(/[-*[\]]\s*(.+)/g);
+      if (acLines) {
+        for (const line of acLines) {
+          const match = line.match(/[-*[\]]\s*[?\s*]?\s*(.+)/);
+          if (match && match[1]) {
+            acceptanceCriteria.push(match[1].trim());
+          }
+        }
+      }
+    }
+
+    return {
+      path,
+      title: `Design: ${task.title}`,
+      overview,
+      requirements: requirements.length > 0 ? requirements : [task.description],
+      approach,
+      acceptanceCriteria: acceptanceCriteria.length > 0 ? acceptanceCriteria : ['Implementation complete', 'All tests pass'],
+    };
+  }
+
+  /**
+   * Format design doc for wiki storage
+   */
+  private formatDesignDocForWiki(doc: DesignDoc): string {
+    let content = `## Overview\n\n${doc.overview}\n\n`;
+    content += `## Requirements\n\n`;
+    for (const req of doc.requirements) {
+      content += `- ${req}\n`;
+    }
+    content += `\n## Approach\n\n${doc.approach}\n\n`;
+    content += `## Acceptance Criteria\n\n`;
+    for (const criterion of doc.acceptanceCriteria) {
+      content += `- [ ] ${criterion}\n`;
+    }
+    content += `\n---\n*Created by ${this.name} on ${new Date().toISOString()}*\n`;
+    return content;
   }
 
   /**
    * Break down a high-level task into dev and QA subtasks
+   * If wiki is available, creates design doc first
    */
   async planTask(task: Task): Promise<TaskBreakdown> {
-    const prompt = this.buildPlanningPrompt(task);
+    // Step 1: Create design doc if wiki is available
+    let designDoc: DesignDoc | null = null;
+    if (this.wikiService) {
+      designDoc = await this.createDesignDoc(task);
+    }
+
+    // Step 2: Build planning prompt (with design doc reference if available)
+    const prompt = this.buildPlanningPrompt(task, designDoc);
 
     const response = await this.processMessageWithTools(prompt);
 
-    // Parse the response to extract task breakdown
-    return this.parseTaskBreakdown(response, task);
+    // Step 3: Parse the response to extract task breakdown
+    const breakdown = this.parseTaskBreakdown(response, task);
+
+    // Attach design doc reference
+    if (designDoc) {
+      breakdown.designDoc = designDoc;
+    }
+
+    return breakdown;
   }
 
   /**
    * Build a prompt for task planning
+   * Includes design doc reference if available
    */
-  private buildPlanningPrompt(task: Task): string {
+  private buildPlanningPrompt(task: Task, designDoc?: DesignDoc | null): string {
     let prompt = `## Plan Task: ${task.title}\n\n`;
     prompt += `**Type**: ${task.type}\n`;
     prompt += `**Priority**: ${task.priority}\n`;
@@ -92,6 +250,23 @@ export class PMAgent extends Agent {
 
     if (task.context) {
       prompt += `**Context**:\n${JSON.stringify(task.context, null, 2)}\n\n`;
+    }
+
+    // Include design doc reference if available
+    if (designDoc) {
+      prompt += `## Design Document\n\n`;
+      prompt += `A design document has been created at: ${designDoc.path}\n\n`;
+      prompt += `**Overview**: ${designDoc.overview}\n\n`;
+      prompt += `**Requirements**:\n`;
+      for (const req of designDoc.requirements) {
+        prompt += `- ${req}\n`;
+      }
+      prompt += `\n**Approach**:\n${designDoc.approach}\n\n`;
+      prompt += `**Acceptance Criteria**:\n`;
+      for (const criterion of designDoc.acceptanceCriteria) {
+        prompt += `- ${criterion}\n`;
+      }
+      prompt += `\nPlease ensure your task breakdown aligns with this design.\n\n`;
     }
 
     prompt += `**Workspace**: ${this.workspace}\n\n`;

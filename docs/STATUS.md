@@ -2,7 +2,7 @@
 
 **Last Updated**: 2026-01-02
 
-## Current Phase: 3 - Enhanced Capabilities (IN PROGRESS)
+## Current Phase: 3 - Enhanced Capabilities (COMPLETED)
 
 ### Phase 1 - COMPLETED
 
@@ -62,7 +62,7 @@
 - [x] E2E tests with real Anthropic API
 - [x] **Total: 122 tests passing (+ 2 E2E when API key set)**
 
-### Phase 3 - Enhanced Capabilities (IN PROGRESS)
+### Phase 3 - Enhanced Capabilities (COMPLETED)
 
 #### Phase 3a - Wiki/Memory System (COMPLETED)
 - [x] WikiService with CRUD operations
@@ -76,16 +76,26 @@
 - [x] Task completion logging to wiki
 - [x] **46 new tests (27 WikiService + 15 WikiTools + 4 integration)**
 
-#### Phase 3b - Design-First Development (Next)
-- [ ] Design doc creation before implementation
-- [ ] PM creates design doc in wiki
-- [ ] Dev implements against design doc
-- [ ] QA tests against design doc
+#### Phase 3b - Design-First Development (COMPLETED)
+- [x] Design doc creation before implementation
+- [x] PM creates design doc in wiki before planning
+- [x] DesignDoc interface with overview, requirements, approach, acceptance criteria
+- [x] Design doc parsing from LLM response
+- [x] Design doc reference included in task breakdown
+- [x] Planning prompt includes design doc context
+- [x] Backward compatible - works without wiki
+- [x] **13 new tests (9 unit + 4 integration)**
 
-#### Phase 3c - Company Structure
-- [ ] CEO agent for higher-level orchestration
-- [ ] Jarvis agent as universal entry point
-- [ ] Communication channels between agents
+#### Phase 3c - Company Structure (COMPLETED)
+- [x] CEO agent for higher-level orchestration
+- [x] Jarvis agent as universal entry point
+- [x] Communication channels between agents
+- [x] Channel with pub/sub messaging
+- [x] ChannelManager for multiple channels
+- [x] Message history and threading
+- [x] Company management in Jarvis
+- [x] Human escalation callbacks
+- [x] **84 new tests (19 CEO + 22 Jarvis + 43 Channel)**
 
 ### Blocked
 None
@@ -93,6 +103,47 @@ None
 ---
 
 ## Recent Changes
+
+### 2026-01-02 (CLI Upgrade + Full E2E Validation)
+- Upgraded CLI to use Jarvis as universal entry point
+  - Workspace-aware (uses current directory)
+  - Wiki support (.acia-wiki folder)
+  - Commands: /status, /clear, /exit
+  - Human escalation display
+  - Timing and status info
+- Added Jarvis E2E tests with real API
+  - Full flow: Jarvis → CEO → Team → Dev/QA
+  - Validated Design-First workflow end-to-end
+  - 4 new E2E tests
+- **Total: 266 tests (+ 7 E2E when API key set)**
+
+### 2026-01-02 (Phase 3c - Company Structure)
+- Added CEOAgent for high-level orchestration
+  - Manages Teams, breaks goals into projects
+  - Handles escalations from PM
+  - Logs goal completion to wiki
+- Added JarvisAgent as universal entry point
+  - Routes requests to appropriate companies/CEOs
+  - Creates new companies for new domains
+  - Status reporting across all companies
+  - Conversation tracking
+- Added Communication Channels
+  - Channel with pub/sub messaging
+  - Topic-based message routing
+  - Message history with filtering
+  - Thread support for conversations
+  - ChannelManager for multiple channels
+- 84 new tests (19 CEO + 22 Jarvis + 43 Channel)
+
+### 2026-01-02 (Phase 3b - Design-First Development)
+- Added DesignDoc interface for structured design docs
+- PMAgent creates design doc before planning when wiki available
+- Design doc includes overview, requirements, approach, acceptance criteria
+- Design doc written to wiki in `designs/` directory
+- Planning prompt includes design doc context for better task alignment
+- TaskBreakdown now includes designDoc reference
+- 13 new tests (9 unit + 4 integration)
+- **Total: 181 tests**
 
 ### 2026-01-02 (Phase 3a - Wiki System)
 - Added WikiService with full CRUD + search
@@ -162,6 +213,12 @@ None
 | 2026-01-02 | File-based wiki (Markdown) | Human-readable, git-trackable, simple |
 | 2026-01-02 | PM read-only wiki, Dev/QA full | PM plans with context, workers document |
 | 2026-01-02 | Wiki optional in Team | Backward compatible, gradual adoption |
+| 2026-01-02 | Design-First Development | PM creates design doc before planning tasks |
+| 2026-01-02 | Design doc in wiki | Single source of truth for requirements and approach |
+| 2026-01-02 | CEO manages Teams | Higher-level orchestration, project breakdown |
+| 2026-01-02 | Jarvis as entry point | Single universal interface for users |
+| 2026-01-02 | Pub/Sub Channels | Flexible agent-to-agent communication |
+| 2026-01-02 | CLI uses Jarvis | Single entry point for all interactions |
 
 ---
 
@@ -177,10 +234,10 @@ None
 | Metric | Target | Current |
 |--------|--------|---------|
 | Test Coverage | >80% | TBD |
-| Unit Tests | All pass | 154/154 |
-| Integration Tests | All pass | 13/13 |
-| E2E Tests | All pass | 2/2 (when API key set) |
-| Total Tests | All pass | 168 (+2 E2E) |
+| Unit Tests | All pass | 248/248 |
+| Integration Tests | All pass | 17/17 |
+| E2E Tests | All pass | 7/7 (when API key set) |
+| Total Tests | All pass | 266 (+7 E2E) |
 | CI Status | Passing | Passing |
 
 ---
@@ -188,9 +245,24 @@ None
 ## Architecture Summary
 
 ```
-User
-  │
-  ▼
+User/Human
+    │
+    ▼
+┌─────────────────────────────────────────────┐
+│               JARVIS                         │
+│  (Universal Entry Point)                     │
+│  Routes requests, manages companies          │
+└────────────────┬────────────────────────────┘
+                 │ creates/manages
+                 ▼
+┌─────────────────────────────────────────────┐
+│               CEO                            │
+│  (Per-Company Orchestrator)                  │
+│  Breaks goals into projects                  │
+│  Handles escalations from Teams              │
+└────────────────┬────────────────────────────┘
+                 │ manages
+                 ▼
 ┌─────────────────────────────────────────────┐
 │                   Team                       │
 │  ┌─────────┐  ┌─────────┐  ┌─────────┐     │
@@ -203,13 +275,26 @@ User
 │              Shared Tools                   │
 │  (read_file, write_file, run_code, etc.)   │
 └─────────────────────────────────────────────┘
+           │
+           │ pub/sub
+           ▼
+┌─────────────────────────────────────────────┐
+│           Communication Channels             │
+│  Topic-based messaging                       │
+│  History, threading, filtering               │
+└─────────────────────────────────────────────┘
 ```
 
-**Workflow:**
-1. User submits task to Team
-2. PM plans task into dev/QA subtasks
-3. Dev implements features
-4. QA tests implementation
-5. If QA fails → Dev fixes → QA retests (loop)
-6. If max iterations → Escalate
-7. Return WorkflowResult with all details
+**Workflow (Design-First with Company Structure):**
+1. User submits request to Jarvis
+2. Jarvis analyzes and routes to appropriate Company/CEO
+3. CEO breaks goal into projects for Team
+4. For each project:
+   a. PM creates design doc (if wiki available)
+   b. PM plans task into dev/QA subtasks (referencing design doc)
+   c. Dev implements features (can read design doc)
+   d. QA tests implementation (can read design doc)
+   e. If QA fails → Dev fixes → QA retests (loop)
+   f. If max iterations → Escalate to PM → CEO → Jarvis → Human
+5. CEO aggregates project results
+6. Jarvis reports back to user
