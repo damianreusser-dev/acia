@@ -19,19 +19,29 @@ Your responsibilities:
 4. Create or update files as needed
 5. Report your progress clearly
 
-When implementing a task:
-1. First understand what needs to be built
-2. Plan the implementation approach
-3. Write the code using available tools
-4. Verify the code is syntactically correct
-5. Report completion with details of what was created
+CRITICAL REQUIREMENT - YOU MUST USE TOOLS:
+- You MUST call tools (read_file, write_file, etc.) to complete tasks
+- Describing what you would do is NOT enough - you must ACTUALLY do it
+- Every implementation task requires at least one write_file call
+- If you don't call any tools, the task WILL FAIL
 
-Available tools allow you to:
-- Read files to understand existing code
-- Write files to create or update code
-- List directories to explore the project structure
-- Run code to test your implementation
-- Generate project scaffolds using templates (list_templates, generate_project, preview_template)
+When implementing a task:
+1. Use read_file to understand existing code structure
+2. Use write_file to create or modify files
+3. Use read_file again to verify your changes
+4. Report exactly which files you created or modified
+
+Tool call format:
+<tool_call>
+{"tool": "write_file", "params": {"path": "path/to/file.ts", "content": "file content here"}}
+</tool_call>
+
+Available tools:
+- read_file: Read files to understand existing code
+- write_file: Create or update files (REQUIRED for implementation tasks)
+- list_directory: Explore project structure
+- run_code: Test your implementation
+- generate_project: Scaffold from templates (list_templates, preview_template available too)
 
 CRITICAL - For new project creation tasks:
 - ALWAYS use generate_project tool FIRST before writing any code
@@ -41,9 +51,14 @@ CRITICAL - For new project creation tasks:
 - The fullstack template creates frontend/ and backend/ subdirectories with all configs
 - After scaffolding, customize the generated files for the specific requirements
 
+For "Customize" tasks:
+1. FIRST: Use read_file to see what the template created
+2. THEN: Use write_file to add/modify files for the specific requirements
+3. FINALLY: Report which files you created or modified
+
 If a task mentions "scaffold", "generate project", or "create project structure", call generate_project immediately.
 
-Always respond with a clear summary of what you did or why you couldn't complete the task.`;
+Always respond with a clear summary of what you ACTUALLY did (files created/modified) or why you couldn't complete the task.`;
 
 export interface DevAgentConfig {
   name?: string;
@@ -147,11 +162,12 @@ export class DevAgent extends Agent {
 
   /**
    * Analyze response to determine if task was successful
+   * Requires BOTH success indicators AND evidence of actual work (tool calls or file modifications)
    */
   private analyzeResponse(response: string): boolean {
     const lowerResponse = response.toLowerCase();
 
-    // Look for failure indicators
+    // Look for failure indicators first
     const failureIndicators = [
       'failed to',
       'could not',
@@ -168,6 +184,21 @@ export class DevAgent extends Agent {
       }
     }
 
+    // Check for evidence of actual work done (tool calls or their results)
+    const toolUsageIndicators = [
+      'tool_call',        // Tool call format
+      'tool_result',      // Tool result format
+      'wrote to',         // File write result
+      'file created',     // File creation
+      'file updated',     // File update
+      'generated project', // Template generation
+      'scaffolded',       // Scaffold result
+    ];
+
+    const hasToolUsage = toolUsageIndicators.some(indicator =>
+      lowerResponse.includes(indicator)
+    );
+
     // Look for success indicators
     const successIndicators = [
       'completed',
@@ -178,14 +209,23 @@ export class DevAgent extends Agent {
       'successfully',
     ];
 
-    for (const indicator of successIndicators) {
-      if (lowerResponse.includes(indicator)) {
-        return true;
-      }
+    const hasSuccessIndicator = successIndicators.some(indicator =>
+      lowerResponse.includes(indicator)
+    );
+
+    // Require BOTH success language AND evidence of actual tool usage
+    // This prevents marking as success when agent just describes what it would do
+    if (hasSuccessIndicator && hasToolUsage) {
+      return true;
     }
 
-    // Default to false - require explicit success indicators
-    // This prevents marking tasks as "success" when nothing was done
+    // If there's tool usage without explicit success language, that's also success
+    // (tools were called, and no failure indicators)
+    if (hasToolUsage) {
+      return true;
+    }
+
+    // Default to false - require evidence of actual work
     return false;
   }
 

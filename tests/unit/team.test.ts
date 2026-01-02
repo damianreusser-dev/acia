@@ -193,15 +193,15 @@ EXECUTION_ORDER:
           stopReason: 'end_turn',
           usage: { inputTokens: 10, outputTokens: 20 },
         })
-        // Dev execution
+        // Dev execution - must include tool usage evidence
         .mockResolvedValueOnce({
-          content: 'Successfully created the module.',
+          content: 'Successfully created the module. Wrote to src/module.ts with the implementation.',
           stopReason: 'end_turn',
           usage: { inputTokens: 10, outputTokens: 20 },
         })
-        // QA execution
+        // QA execution - must include tool usage evidence
         .mockResolvedValueOnce({
-          content: 'All tests passed. 3 pass, 0 fail.',
+          content: 'All tests passed. 3 pass, 0 fail. Wrote to test-results.json.',
           stopReason: 'end_turn',
           usage: { inputTokens: 10, outputTokens: 20 },
         });
@@ -273,15 +273,15 @@ EXECUTION_ORDER:
           stopReason: 'end_turn',
           usage: { inputTokens: 10, outputTokens: 20 },
         })
-        // Dev retry - succeeds
+        // Dev retry - succeeds (with tool usage evidence)
         .mockResolvedValueOnce({
-          content: 'Successfully created the module.',
+          content: 'Successfully created the module. Wrote to src/module.ts.',
           stopReason: 'end_turn',
           usage: { inputTokens: 10, outputTokens: 20 },
         })
-        // QA passes
+        // QA passes (with tool usage evidence)
         .mockResolvedValueOnce({
-          content: 'All tests passed.',
+          content: 'All tests passed. Wrote to test-results.json.',
           stopReason: 'end_turn',
           usage: { inputTokens: 10, outputTokens: 20 },
         });
@@ -707,9 +707,9 @@ EXECUTION_ORDER:
         }
         // Alternate: Dev succeeds, QA fails (to trigger iteration loop)
         if (callCount % 2 === 0) {
-          // Dev responses - contain success indicator
+          // Dev responses - contain success indicator AND tool usage evidence
           return {
-            content: 'Feature created successfully',
+            content: 'Feature created successfully. Wrote to src/feature.ts with implementation.',
             stopReason: 'end_turn',
             usage: { inputTokens: 10, outputTokens: 20 },
           };

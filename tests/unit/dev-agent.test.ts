@@ -13,7 +13,8 @@ vi.mock('../../src/core/llm/client.js', () => {
   return {
     LLMClient: vi.fn().mockImplementation(() => ({
       chat: vi.fn().mockResolvedValue({
-        content: 'Implementation completed successfully. Created file src/feature.ts',
+        // Include tool usage evidence (wrote to) so analyzeResponse detects actual work
+        content: 'Implementation completed successfully. Wrote to src/feature.ts with the new feature code.',
         stopReason: 'end_turn',
         usage: { inputTokens: 10, outputTokens: 20 },
       }),

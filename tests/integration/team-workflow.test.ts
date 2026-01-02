@@ -57,9 +57,9 @@ EXECUTION_ORDER:
         stopReason: 'end_turn',
         usage: { inputTokens: 100, outputTokens: 200 },
       })
-      // Dev response after tool execution
+      // Dev response after tool execution - must include tool usage evidence
       .mockResolvedValueOnce({
-        content: 'Successfully created greeting.ts with the hello function.',
+        content: 'Successfully created greeting.ts with the hello function. Wrote to greeting.ts.',
         stopReason: 'end_turn',
         usage: { inputTokens: 100, outputTokens: 200 },
       })
@@ -72,9 +72,9 @@ EXECUTION_ORDER:
         stopReason: 'end_turn',
         usage: { inputTokens: 100, outputTokens: 200 },
       })
-      // QA final response
+      // QA final response - must include tool usage evidence
       .mockResolvedValueOnce({
-        content: 'Verification passed. The greeting.ts file exists and contains the hello function. All tests passed.',
+        content: 'Verification passed. The greeting.ts file exists and contains the hello function. All tests passed. File created successfully.',
         stopReason: 'end_turn',
         usage: { inputTokens: 100, outputTokens: 200 },
       });
@@ -144,9 +144,9 @@ EXECUTION_ORDER:
         stopReason: 'end_turn',
         usage: { inputTokens: 100, outputTokens: 200 },
       })
-      // Dev final response
+      // Dev final response - must include tool usage evidence
       .mockResolvedValueOnce({
-        content: 'Successfully created the file.',
+        content: 'Successfully created the file. Wrote to test.ts.',
         stopReason: 'end_turn',
         usage: { inputTokens: 100, outputTokens: 200 },
       });
@@ -184,15 +184,15 @@ EXECUTION_ORDER:
         stopReason: 'end_turn',
         usage: { inputTokens: 100, outputTokens: 200 },
       })
-      // Dev completes
+      // Dev completes - must include tool usage evidence
       .mockResolvedValueOnce({
-        content: 'Completed task A successfully.',
+        content: 'Completed task A successfully. Wrote to task-a.ts.',
         stopReason: 'end_turn',
         usage: { inputTokens: 100, outputTokens: 200 },
       })
-      // QA completes
+      // QA completes - must include tool usage evidence
       .mockResolvedValueOnce({
-        content: 'All tests passed for task B.',
+        content: 'All tests passed for task B. File created successfully.',
         stopReason: 'end_turn',
         usage: { inputTokens: 100, outputTokens: 200 },
       });
