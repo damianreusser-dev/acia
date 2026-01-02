@@ -186,13 +186,18 @@ export class DevAgent extends Agent {
 
     // Check for evidence of actual work done (tool calls or their results)
     const toolUsageIndicators = [
-      'tool_call',        // Tool call format
-      'tool_result',      // Tool result format
-      'wrote to',         // File write result
-      'file created',     // File creation
-      'file updated',     // File update
-      'generated project', // Template generation
-      'scaffolded',       // Scaffold result
+      'tool_call',          // Tool call format
+      'tool_result',        // Tool result format
+      'wrote to',           // File write result
+      'file created',       // File creation
+      'file updated',       // File update
+      'files created',      // Multiple files created (common LLM phrasing)
+      'files written',      // Multiple files written (common LLM phrasing)
+      'generated project',  // Template generation
+      'scaffolded',         // Scaffold result
+      'contents of',        // Showing file contents (implies file exists)
+      'i created',          // First person file creation
+      'i wrote',            // First person file writing
     ];
 
     const hasToolUsage = toolUsageIndicators.some(indicator =>
