@@ -270,9 +270,12 @@ export class PMAgent extends Agent {
     // Extract project name from task using multiple patterns
     const patterns = [
       /projectName[=:]\s*["']?([a-zA-Z0-9_-]+)["']?/i,           // projectName="test-app"
+      /called\s+["']([a-zA-Z0-9_-]+)["']/i,                      // called "test-app" or called 'test-app'
+      /(?:named|name)\s+["']?([a-zA-Z0-9_-]+)["']?/i,            // named "test-app" or name "test-app"
       /(?:in\s+(?:the\s+)?)?directory\s*["']?([a-zA-Z0-9_-]+)["']?/i, // directory "test-app"
       /(?:in\s+(?:the\s+)?)?folder\s*["']?([a-zA-Z0-9_-]+)["']?/i,    // folder "test-app"
       /["']([a-zA-Z0-9_-]+)["']\s*(?:directory|folder|project)/i,     // "test-app" directory
+      /project\s+["']([a-zA-Z0-9_-]+)["']/i,                     // project "test-app"
     ];
 
     let projectName = 'my-project';
@@ -304,27 +307,77 @@ export class PMAgent extends Agent {
       maxAttempts: 1, // Scaffold should work first time
     });
 
-    // Create customize task only if there are specific requirements
+    // Create customize tasks based on requirements
     const devTasks: Task[] = [scaffoldTask];
-    const hasCustomRequirements =
-      text.includes('todo') ||
-      text.includes('with:') ||
-      text.includes('requirements') ||
-      text.includes('must have');
 
-    if (hasCustomRequirements) {
-      // Extract structured requirements from the original request
+    // Detect structured sections for separate tasks
+    const hasBackend = /BACKEND[^:]*:/i.test(task.description);
+    const hasFrontend = /FRONTEND[^:]*:/i.test(task.description);
+    const hasRequirements = /REQUIREMENTS:/i.test(task.description) ||
+      text.includes('with:') || text.includes('must have');
+
+    // Create separate backend customize task
+    if (hasBackend) {
+      const backendDesc = this.extractSectionRequirements(task.description, 'BACKEND', projectName);
+      if (backendDesc) {
+        devTasks.push(createTask({
+          type: 'implement',
+          title: 'Customize Backend',
+          description: backendDesc,
+          createdBy: this.name,
+          priority: task.priority,
+          parentTaskId: task.id,
+          maxAttempts: 3,
+          context: { agentType: 'backend' },
+        }));
+      }
+    }
+
+    // Create separate frontend customize task
+    if (hasFrontend) {
+      const frontendDesc = this.extractSectionRequirements(task.description, 'FRONTEND', projectName);
+      if (frontendDesc) {
+        devTasks.push(createTask({
+          type: 'implement',
+          title: 'Customize Frontend',
+          description: frontendDesc,
+          createdBy: this.name,
+          priority: task.priority,
+          parentTaskId: task.id,
+          maxAttempts: 3,
+          context: { agentType: 'frontend' },
+        }));
+      }
+    }
+
+    // Create general requirements task if no structured sections but has requirements
+    if (!hasBackend && !hasFrontend && hasRequirements) {
       const customizeDescription = this.buildCustomizeDescription(task.description, projectName);
-      const customizeTask = createTask({
+      devTasks.push(createTask({
         type: 'implement',
         title: 'Customize for Requirements',
         description: customizeDescription,
         createdBy: this.name,
         priority: task.priority,
         parentTaskId: task.id,
+        maxAttempts: 3,
+      }));
+    }
+
+    // Add tests task if tests are mentioned
+    if (text.includes('test') && (hasBackend || hasFrontend)) {
+      devTasks.push(createTask({
+        type: 'implement',
+        title: 'Add Tests',
+        description: `Add unit tests for the ${projectName} project as specified in the requirements.\n\n` +
+          `Use read_file to check existing code, then write_file to create test files.\n` +
+          `Backend tests should go in ${projectName}/backend/tests/\n` +
+          `Frontend tests should go in ${projectName}/frontend/src/__tests__/`,
+        createdBy: this.name,
+        priority: task.priority,
+        parentTaskId: task.id,
         maxAttempts: 2,
-      });
-      devTasks.push(customizeTask);
+      }));
     }
 
     // For scaffold tasks, skip QA entirely - just generate structure
@@ -510,6 +563,64 @@ export class PMAgent extends Agent {
 
     lines.push('');
     lines.push('IMPORTANT: Use read_file to check what the template created first, then write_file to modify specific files.');
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Extract requirements for a specific section (BACKEND or FRONTEND)
+   */
+  private extractSectionRequirements(
+    description: string,
+    section: 'BACKEND' | 'FRONTEND',
+    projectName: string
+  ): string | null {
+    // Match the section and extract its content
+    const sectionRegex = new RegExp(
+      `${section}[^:]*:\\s*([\\s\\S]*?)(?=FRONTEND|BACKEND|REQUIREMENTS:|$)`,
+      'i'
+    );
+    const match = description.match(sectionRegex);
+
+    if (!match || !match[1]) {
+      return null;
+    }
+
+    const sectionContent = match[1].trim();
+    const lines: string[] = [];
+
+    if (section === 'BACKEND') {
+      lines.push(`## Customize Backend for ${projectName}`);
+      lines.push('');
+      lines.push(`Working directory: ${projectName}/backend/`);
+      lines.push('');
+      lines.push('Requirements:');
+      lines.push(sectionContent);
+      lines.push('');
+      lines.push('Steps:');
+      lines.push('1. Use read_file to check existing src/app.ts structure');
+      lines.push('2. Create new route files in src/routes/ for each endpoint group');
+      lines.push('3. Create type definitions in src/types/ if needed');
+      lines.push('4. Update src/app.ts to import and register new routes');
+      lines.push('5. Use read_file to verify changes');
+    } else {
+      lines.push(`## Customize Frontend for ${projectName}`);
+      lines.push('');
+      lines.push(`Working directory: ${projectName}/frontend/`);
+      lines.push('');
+      lines.push('Requirements:');
+      lines.push(sectionContent);
+      lines.push('');
+      lines.push('Steps:');
+      lines.push('1. Use read_file to check existing src/App.tsx structure');
+      lines.push('2. Create component files in src/components/ for each UI component');
+      lines.push('3. Create hooks in src/hooks/ if needed for state management');
+      lines.push('4. Update src/App.tsx to import and use new components');
+      lines.push('5. Add API calls to connect to backend');
+    }
+
+    lines.push('');
+    lines.push('IMPORTANT: Use write_file to create/modify files. Do NOT just describe what to do.');
 
     return lines.join('\n');
   }

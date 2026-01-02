@@ -60,7 +60,7 @@ export class Team {
   constructor(config: TeamConfig) {
     this.workspace = config.workspace;
     this.wikiService = config.wikiService;
-    this.maxIterations = config.maxIterations ?? 3;
+    this.maxIterations = config.maxIterations ?? 5; // Increased for complex multi-task workflows
     this.onEscalation = config.onEscalation;
     this.onProgress = config.onProgress;
 

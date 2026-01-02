@@ -152,18 +152,33 @@ export class Agent {
 
   /**
    * Parse a tool call from LLM response
+   * Robust to common LLM output errors like </tool_call} instead of </tool_call>
    */
   private parseToolCall(
     content: string
   ): { tool: string; params: Record<string, unknown> } | null {
-    const toolCallMatch = content.match(/<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/);
+    // Flexible regex that handles common LLM output errors:
+    // - </tool_call> (correct)
+    // - </tool_call} (} instead of >)
+    // - </tool_call  (missing >)
+    // - </ tool_call> (extra space)
+    const toolCallMatch = content.match(/<tool_call>\s*([\s\S]*?)\s*<\/?[/\s]*tool_call[>}]?/i);
 
     if (!toolCallMatch || !toolCallMatch[1]) {
       return null;
     }
 
     try {
-      const parsed = JSON.parse(toolCallMatch[1]);
+      // Clean up the JSON - remove any trailing incomplete content
+      let jsonStr = toolCallMatch[1].trim();
+
+      // Handle case where JSON might have trailing garbage after the closing brace
+      const lastBrace = jsonStr.lastIndexOf('}');
+      if (lastBrace > 0) {
+        jsonStr = jsonStr.substring(0, lastBrace + 1);
+      }
+
+      const parsed = JSON.parse(jsonStr);
 
       if (typeof parsed.tool !== 'string') {
         return null;

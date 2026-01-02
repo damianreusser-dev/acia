@@ -283,5 +283,46 @@ describe('Agent', () => {
       const toolResultMsg = history.find((h) => h.content.includes('tool_result'));
       expect(toolResultMsg?.content).toContain('Intentional failure');
     });
+
+    it('should handle malformed tool call closing tag (</tool_call})', async () => {
+      const tool: Tool = {
+        definition: {
+          name: 'greet',
+          description: 'Greet someone',
+          parameters: [{ name: 'name', type: 'string', description: 'Name', required: true }],
+        },
+        execute: vi.fn().mockResolvedValue({ success: true, output: 'Hello!' }),
+      };
+
+      // Simulate LLM outputting malformed closing tag
+      const mockChat = vi
+        .fn()
+        .mockResolvedValueOnce({
+          content: '<tool_call>\n{"tool": "greet", "params": {"name": "World"}}\n</tool_call}',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        })
+        .mockResolvedValueOnce({
+          content: 'Greeted successfully!',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        });
+
+      const customMockClient = { chat: mockChat } as unknown as LLMClient;
+
+      const agentWithTools = new Agent({
+        name: 'ToolAgent',
+        role: 'Tester',
+        systemPrompt: 'Test',
+        llmClient: customMockClient,
+        tools: [tool],
+      });
+
+      const response = await agentWithTools.processMessageWithTools('Say hello');
+
+      // Tool should still be executed despite malformed tag
+      expect(tool.execute).toHaveBeenCalledWith({ name: 'World' });
+      expect(response).toBe('Greeted successfully!');
+    });
   });
 });
