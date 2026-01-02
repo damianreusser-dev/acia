@@ -246,21 +246,11 @@ describe('PMAgent', () => {
   });
 
   describe('new project detection', () => {
-    it('should detect fullstack application requests', async () => {
-      // Mock returns scaffold task when new project is detected
+    it('should detect fullstack application requests and use scaffold optimization', async () => {
+      // Scaffold optimization: fullstack tasks bypass LLM and create breakdown directly
       const scaffoldMock = {
         chat: vi.fn().mockResolvedValue({
-          content: `DEV_TASKS:
-1. [Scaffold Project] - Use generate_project tool with template="fullstack" to create project structure
-2. [Customize Backend] - Add todo routes to the generated Express backend
-
-QA_TASKS:
-1. [Test Backend] - Verify the backend API works
-
-EXECUTION_ORDER:
-1. DEV:1
-2. DEV:2
-3. QA:1`,
+          content: 'This should not be called',
           stopReason: 'end_turn',
           usage: { inputTokens: 10, outputTokens: 20 },
         }),
@@ -281,16 +271,25 @@ EXECUTION_ORDER:
 
       const breakdown = await agent.planTask(task);
 
-      // The mock should have been called (LLM was invoked)
-      expect(scaffoldMock.chat).toHaveBeenCalled();
-      // First call should include the IMPORTANT prompt about scaffolding
-      const callArgs = scaffoldMock.chat.mock.calls[0];
-      expect(callArgs).toBeDefined();
+      // Scaffold optimization: LLM should NOT be called for scaffold tasks
+      expect(scaffoldMock.chat).not.toHaveBeenCalled();
+      // But we should still get a valid breakdown
+      expect(breakdown.devTasks.length).toBeGreaterThan(0);
+      // First task should be scaffold
+      expect(breakdown.devTasks[0].description).toContain('generate_project');
     });
 
-    it('should detect web application requests', async () => {
+    it('should detect web application requests and use scaffold optimization', async () => {
+      const scaffoldMock = {
+        chat: vi.fn().mockResolvedValue({
+          content: 'This should not be called',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        }),
+      } as unknown as LLMClient;
+
       const agent = new PMAgent({
-        llmClient: mockLLMClient,
+        llmClient: scaffoldMock,
         tools: mockTools,
         workspace: '/test/workspace',
       });
@@ -302,11 +301,13 @@ EXECUTION_ORDER:
         createdBy: 'User',
       });
 
-      // The agent should recognize this as a new project task
-      await agent.planTask(task);
+      // The agent should recognize this as a new project task and use scaffold optimization
+      const breakdown = await agent.planTask(task);
 
-      // Check the chat was called
-      expect((mockLLMClient.chat as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
+      // Scaffold optimization: LLM should NOT be called for new project tasks
+      expect(scaffoldMock.chat).not.toHaveBeenCalled();
+      // Should still produce valid breakdown
+      expect(breakdown.devTasks.length).toBeGreaterThan(0);
     });
 
     it('should NOT detect modification tasks as new projects', async () => {

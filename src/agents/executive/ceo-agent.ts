@@ -148,8 +148,14 @@ export class CEOAgent extends Agent {
       };
     }
 
-    // Break down goal into projects
-    const projects = await this.planProjects(goal);
+    // OPTIMIZATION: For scaffold tasks, skip project planning and delegate directly
+    let projects: Project[];
+    if (this.isScaffoldGoal(goal)) {
+      projects = [this.createScaffoldProject(goal)];
+    } else {
+      // Break down goal into projects
+      projects = await this.planProjects(goal);
+    }
 
     let completedProjects = 0;
     let failedProjects = 0;
@@ -211,6 +217,56 @@ export class CEOAgent extends Agent {
       failedProjects,
       escalatedToHuman,
       humanEscalationReason,
+    };
+  }
+
+  /**
+   * Check if a goal is for scaffolding a new project
+   */
+  private isScaffoldGoal(goal: string): boolean {
+    const text = goal.toLowerCase();
+    const scaffoldKeywords = [
+      'generate_project',
+      'scaffold',
+      'template=',
+      'create a fullstack',
+      'create a simple fullstack',
+      'fullstack todo',
+      'fullstack application',
+      'todo application',
+    ];
+    return scaffoldKeywords.some(keyword => text.includes(keyword));
+  }
+
+  /**
+   * Create a scaffold project without LLM planning
+   */
+  private createScaffoldProject(goal: string): Project {
+    // Extract project name from goal
+    // Try multiple patterns for project name extraction
+    const patterns = [
+      /projectName[=:]\s*["']?([a-zA-Z0-9_-]+)["']?/i,           // projectName="test-app"
+      /(?:in\s+(?:the\s+)?)?directory\s*["']?([a-zA-Z0-9_-]+)["']?/i, // directory "test-app" or in the directory "test-app"
+      /(?:in\s+(?:the\s+)?)?folder\s*["']?([a-zA-Z0-9_-]+)["']?/i,    // folder "test-app"
+      /["']([a-zA-Z0-9_-]+)["']\s*(?:directory|folder|project)/i,     // "test-app" directory
+    ];
+
+    let projectName = 'my-project';
+    for (const pattern of patterns) {
+      const match = goal.match(pattern);
+      if (match?.[1] && match[1] !== 'the') {
+        projectName = match[1];
+        break;
+      }
+    }
+
+    return {
+      id: `proj_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`,
+      title: `Scaffold ${projectName}`,
+      description: `${goal}\n\nIMPORTANT: Use generate_project tool with template="fullstack" and projectName="${projectName}".`,
+      priority: 'high',
+      status: 'pending',
+      createdAt: new Date(),
     };
   }
 

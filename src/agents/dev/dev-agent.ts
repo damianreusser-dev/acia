@@ -184,8 +184,9 @@ export class DevAgent extends Agent {
       }
     }
 
-    // Default to true if no clear failure
-    return true;
+    // Default to false - require explicit success indicators
+    // This prevents marking tasks as "success" when nothing was done
+    return false;
   }
 
   /**

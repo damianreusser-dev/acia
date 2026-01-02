@@ -686,11 +686,13 @@ EXECUTION_ORDER:
     });
 
     it('should stop after maxIterations', async () => {
-      const mockChat = vi
-        .fn()
-        // PM planning
-        .mockResolvedValueOnce({
-          content: `DEV_TASKS:
+      let callCount = 0;
+      const mockChat = vi.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          // PM planning
+          return {
+            content: `DEV_TASKS:
 1. [Create feature] - Create the feature
 
 QA_TASKS:
@@ -699,15 +701,27 @@ QA_TASKS:
 EXECUTION_ORDER:
 1. DEV:1
 2. QA:1`,
-          stopReason: 'end_turn',
-          usage: { inputTokens: 10, outputTokens: 20 },
-        })
-        // All responses fail
-        .mockResolvedValue({
-          content: 'Test failed',
-          stopReason: 'end_turn',
-          usage: { inputTokens: 10, outputTokens: 20 },
-        });
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          };
+        }
+        // Alternate: Dev succeeds, QA fails (to trigger iteration loop)
+        if (callCount % 2 === 0) {
+          // Dev responses - contain success indicator
+          return {
+            content: 'Feature created successfully',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          };
+        } else {
+          // QA responses - failure to trigger next iteration
+          return {
+            content: 'Test failed - feature not working correctly',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          };
+        }
+      });
 
       const customMockClient = { chat: mockChat } as unknown as LLMClient;
 

@@ -219,10 +219,15 @@ export class PMAgent extends Agent {
 
   /**
    * Break down a high-level task into dev and QA subtasks
-   * If wiki is available, creates design doc first
+   * If wiki is available, creates design doc first (unless it's a scaffold task)
    */
   async planTask(task: Task): Promise<TaskBreakdown> {
-    // Step 1: Create design doc if wiki is available
+    // OPTIMIZATION: For scaffold tasks, skip design doc and return fast breakdown
+    if (this.isScaffoldTask(task)) {
+      return this.createScaffoldBreakdown(task);
+    }
+
+    // Step 1: Create design doc if wiki is available (non-scaffold tasks)
     let designDoc: DesignDoc | null = null;
     if (this.wikiService) {
       designDoc = await this.createDesignDoc(task);
@@ -231,7 +236,8 @@ export class PMAgent extends Agent {
     // Step 2: Build planning prompt (with design doc reference if available)
     const prompt = this.buildPlanningPrompt(task, designDoc);
 
-    const response = await this.processMessageWithTools(prompt);
+    // Use reduced iterations for planning (max 3 instead of default 10)
+    const response = await this.processMessageWithTools(prompt, 3);
 
     // Step 3: Parse the response to extract task breakdown
     const breakdown = this.parseTaskBreakdown(response, task);
@@ -242,6 +248,91 @@ export class PMAgent extends Agent {
     }
 
     return breakdown;
+  }
+
+  /**
+   * Check if a task is a scaffold task that can be fast-tracked
+   */
+  private isScaffoldTask(task: Task): boolean {
+    const text = `${task.title} ${task.description}`.toLowerCase();
+    return (
+      text.includes('scaffold') ||
+      text.includes('generate_project') ||
+      text.includes('template=') ||
+      (this.isNewProjectTask(task) && !text.includes('customize'))
+    );
+  }
+
+  /**
+   * Create optimized breakdown for scaffold tasks (no design doc, no LLM call)
+   */
+  private createScaffoldBreakdown(task: Task): TaskBreakdown {
+    // Extract project name from task using multiple patterns
+    const patterns = [
+      /projectName[=:]\s*["']?([a-zA-Z0-9_-]+)["']?/i,           // projectName="test-app"
+      /(?:in\s+(?:the\s+)?)?directory\s*["']?([a-zA-Z0-9_-]+)["']?/i, // directory "test-app"
+      /(?:in\s+(?:the\s+)?)?folder\s*["']?([a-zA-Z0-9_-]+)["']?/i,    // folder "test-app"
+      /["']([a-zA-Z0-9_-]+)["']\s*(?:directory|folder|project)/i,     // "test-app" directory
+    ];
+
+    let projectName = 'my-project';
+    for (const pattern of patterns) {
+      const match = task.description.match(pattern);
+      if (match?.[1] && match[1] !== 'the') {
+        projectName = match[1];
+        break;
+      }
+    }
+
+    // Determine template type
+    let template = 'fullstack';
+    const text = task.description.toLowerCase();
+    if (text.includes('react') && !text.includes('express') && !text.includes('backend')) {
+      template = 'react';
+    } else if (text.includes('express') && !text.includes('react') && !text.includes('frontend')) {
+      template = 'express';
+    }
+
+    // Create scaffold task
+    const scaffoldTask = createTask({
+      type: 'implement',
+      title: 'Scaffold Project',
+      description: `IMMEDIATELY call generate_project tool with template="${template}" and projectName="${projectName}". Do NOT write files manually.`,
+      createdBy: this.name,
+      priority: task.priority,
+      parentTaskId: task.id,
+      maxAttempts: 1, // Scaffold should work first time
+    });
+
+    // Create customize task only if there are specific requirements
+    const devTasks: Task[] = [scaffoldTask];
+    const hasCustomRequirements =
+      text.includes('todo') ||
+      text.includes('with:') ||
+      text.includes('requirements') ||
+      text.includes('must have');
+
+    if (hasCustomRequirements) {
+      // Extract structured requirements from the original request
+      const customizeDescription = this.buildCustomizeDescription(task.description, projectName);
+      const customizeTask = createTask({
+        type: 'implement',
+        title: 'Customize for Requirements',
+        description: customizeDescription,
+        createdBy: this.name,
+        priority: task.priority,
+        parentTaskId: task.id,
+        maxAttempts: 2,
+      });
+      devTasks.push(customizeTask);
+    }
+
+    // For scaffold tasks, skip QA entirely - just generate structure
+    return {
+      devTasks,
+      qaTasks: [],
+      order: devTasks.map((t) => ({ agent: 'dev' as const, taskId: t.id })),
+    };
   }
 
   /**
@@ -310,34 +401,117 @@ export class PMAgent extends Agent {
 
   /**
    * Detect if a task is for creating a new project
+   * Be specific to avoid triggering on simple file creation tasks
    */
   private isNewProjectTask(task: Task): boolean {
     const text = `${task.title} ${task.description}`.toLowerCase();
 
-    // Keywords that indicate new project creation
-    const newProjectKeywords = [
-      'create a', 'build a', 'make a', 'develop a', 'implement a',
+    // Strong indicators of new project creation (match alone)
+    const strongProjectKeywords = [
       'new project', 'new application', 'new app',
       'fullstack', 'full-stack', 'full stack',
       'todo application', 'todo app',
       'web application', 'web app',
     ];
 
-    // Check for project directory references in description
-    const hasDirectoryRef = /in\s+(?:the\s+)?(?:directory|folder)?\s*["']?[\w-]+["']?/i.test(task.description);
-
-    for (const keyword of newProjectKeywords) {
+    for (const keyword of strongProjectKeywords) {
       if (text.includes(keyword)) {
         return true;
       }
     }
 
-    // Also check if it mentions creating multiple files/components
+    // Check for action + project-type combination (e.g., "create a fullstack application")
+    const actionKeywords = ['create', 'build', 'make', 'develop', 'implement'];
+    const projectTypeKeywords = ['application', 'project', 'app'];
+
+    const hasAction = actionKeywords.some(action => text.includes(action));
+    const hasProjectType = projectTypeKeywords.some(type => text.includes(type));
+
+    // Check for project directory references in description
+    const hasDirectoryRef = /in\s+(?:the\s+)?(?:directory|folder)?\s*["']?[\w-]+["']?/i.test(task.description);
+
+    // Require both action + project type, or directory ref + application
+    if (hasAction && hasProjectType && hasDirectoryRef) {
+      return true;
+    }
+
     if (hasDirectoryRef && text.includes('application')) {
       return true;
     }
 
     return false;
+  }
+
+  /**
+   * Build a structured, actionable customize task description
+   * Extracts specific requirements from the original request
+   */
+  private buildCustomizeDescription(originalRequest: string, projectName: string): string {
+    const lines: string[] = [];
+    lines.push(`Customize the scaffolded "${projectName}" project to meet the following requirements:`);
+    lines.push('');
+
+    // Extract backend requirements
+    const backendMatch = originalRequest.match(/BACKEND[^:]*:?\s*([\s\S]*?)(?=FRONTEND|REQUIREMENTS:|$)/i);
+    if (backendMatch && backendMatch[1]) {
+      lines.push('## BACKEND CHANGES (in backend/src/):');
+      const backendReqs = backendMatch[1].trim().split(/\n/).filter(line => line.trim().startsWith('-'));
+      for (const req of backendReqs) {
+        lines.push(req.trim());
+      }
+      lines.push('');
+      lines.push('Actions needed:');
+      lines.push('1. Create routes/todos.ts with CRUD endpoints');
+      lines.push('2. Create types/todo.ts with Todo interface');
+      lines.push('3. Update app.ts to register todo routes at /api/todos');
+      lines.push('4. Create tests/todos.test.ts with at least 3 tests');
+      lines.push('');
+    }
+
+    // Extract frontend requirements
+    const frontendMatch = originalRequest.match(/FRONTEND[^:]*:?\s*([\s\S]*?)(?=BACKEND|REQUIREMENTS:|$)/i);
+    if (frontendMatch && frontendMatch[1]) {
+      lines.push('## FRONTEND CHANGES (in frontend/src/):');
+      const frontendReqs = frontendMatch[1].trim().split(/\n/).filter(line => line.trim().startsWith('-'));
+      for (const req of frontendReqs) {
+        lines.push(req.trim());
+      }
+      lines.push('');
+      lines.push('Actions needed:');
+      lines.push('1. Create components/TodoList.tsx');
+      lines.push('2. Create components/TodoItem.tsx');
+      lines.push('3. Create components/AddTodo.tsx');
+      lines.push('4. Update App.tsx to use these components with useState and useEffect');
+      lines.push('5. Add API fetch calls to connect to backend');
+      lines.push('');
+    }
+
+    // Extract general requirements
+    const requirementsMatch = originalRequest.match(/REQUIREMENTS:?\s*([\s\S]*?)$/i);
+    if (requirementsMatch && requirementsMatch[1]) {
+      lines.push('## ADDITIONAL REQUIREMENTS:');
+      const reqs = requirementsMatch[1].trim().split(/\n/).filter(line => line.trim().startsWith('-'));
+      for (const req of reqs) {
+        lines.push(req.trim());
+      }
+      lines.push('');
+    }
+
+    // If no structured sections found, provide generic instructions
+    if (lines.length <= 2) {
+      lines.push('Review the original request and implement the required functionality:');
+      lines.push(originalRequest);
+      lines.push('');
+      lines.push('Focus on:');
+      lines.push('1. Adding the specific features mentioned');
+      lines.push('2. Connecting frontend to backend API');
+      lines.push('3. Adding any missing tests');
+    }
+
+    lines.push('');
+    lines.push('IMPORTANT: Use read_file to check what the template created first, then write_file to modify specific files.');
+
+    return lines.join('\n');
   }
 
   /**

@@ -230,6 +230,17 @@
 - [x] Integration test verifies scaffold task flow (PM → Dev)
 - [x] **3 new tests (PM new project detection)**
 
+#### Phase 5i - Agent Customization Fixes (COMPLETED)
+- [x] Express template health endpoint fixed: `/health` → `/api/health`
+- [x] Express template test path updated to match
+- [x] tsconfig.json no longer excludes test files
+- [x] DevAgent `analyzeResponse()` defaults to failure (requires explicit success indicators)
+- [x] PMAgent `buildCustomizeDescription()` extracts structured requirements
+  - Parses BACKEND, FRONTEND, REQUIREMENTS sections
+  - Provides specific actionable instructions for customization
+  - Tells agents to read template first before modifying
+- [x] **Updated 3 unit tests for new behavior**
+
 **Success Criteria**:
 - [ ] Benchmark test passes (todo app with React + Express)
 - [ ] All generated code compiles
@@ -238,9 +249,11 @@
 
 **Current Status**:
 - Integration tests pass: PM correctly creates scaffold tasks, Dev correctly uses generate_project
-- Full benchmark still failing: Multi-layer orchestration (Jarvis → CEO → Team) needs tuning
+- Template fixes applied: Health endpoint at /api/health, tests aligned
+- Agent fixes applied: Dev requires explicit success, PM provides structured customize tasks
 - Token efficiency passing: 12,112 tokens for hello-world server
 - Ambiguous requirements passing: Agent asks for clarification
+- Ready for benchmark validation
 
 ### Blocked
 None
@@ -248,6 +261,24 @@ None
 ---
 
 ## Recent Changes
+
+### 2026-01-02 (Phase 5i - Agent Customization Fixes)
+- Fixed Express template health endpoint path
+  - `/health` → `/api/health` (matches benchmark test expectation)
+  - Updated template test to use correct path
+  - Removed `**/*.test.ts` from tsconfig exclude (was blocking test type-checking)
+- Fixed DevAgent success detection
+  - `analyzeResponse()` now defaults to `false` instead of `true`
+  - Prevents marking tasks as "success" when nothing was actually done
+  - Requires explicit success indicators: completed, created, implemented, etc.
+- Fixed PMAgent customize task description
+  - Added `buildCustomizeDescription()` method
+  - Extracts BACKEND, FRONTEND, REQUIREMENTS sections from original request
+  - Provides specific actionable instructions (create routes/todos.ts, etc.)
+  - Tells agent to read template files first before modifying
+- Updated team.test.ts to properly test iteration loop
+  - Mock now alternates Dev success / QA failure to trigger iterations
+- **Total: 520 tests (+14 E2E when API key set)**
 
 ### 2026-01-02 (Phase 5h - Scaffold Task Detection)
 - PMAgent now detects new project creation tasks
@@ -532,6 +563,8 @@ None
 | 2026-01-02 | ArchitectAgent for design | Create system design before implementation |
 | 2026-01-02 | Contract-First Development | Define API contracts for parallel team work |
 | 2026-01-02 | GitTools sandboxed | Version control with security (no remote ops) |
+| 2026-01-02 | Dev agent default to failure | Require explicit success indicators to prevent false positives |
+| 2026-01-02 | Structured customize tasks | PM extracts specific requirements for agent customization |
 
 ---
 
@@ -564,7 +597,7 @@ None
 | CEO Multi-Team Tests | All pass | 6/6 |
 | Jarvis Workspace Tests | All pass | 5/5 |
 | Template Tools Tests | All pass | 11/11 |
-| Total Tests | All pass | 492 (+8 E2E) |
+| Total Tests | All pass | 520 (+14 E2E) |
 | CI Status | Passing | Passing |
 
 ---

@@ -95,7 +95,7 @@ export function createExpressTemplate(options: TemplateOptions): ProjectTemplate
             noFallthroughCasesInSwitch: true,
           },
           include: ['src/**/*'],
-          exclude: ['node_modules', 'dist', '**/*.test.ts'],
+          exclude: ['node_modules', 'dist'],
         }, null, 2),
         description: 'TypeScript configuration',
       },
@@ -161,7 +161,7 @@ export function createApp(): Express {
   app.use(express.urlencoded({ extended: true }));
 
   // Routes
-  app.use('/health', healthRouter);
+  app.use('/api/health', healthRouter);
 
   // Error handling
   app.use(errorHandler);
@@ -257,7 +257,7 @@ describe('Health Endpoint', () => {
 
   it('should return health status', async () => {
     const response = await request(app)
-      .get('/health')
+      .get('/api/health')
       .expect(200);
 
     expect(response.body.status).toBe('ok');

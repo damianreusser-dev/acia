@@ -214,7 +214,7 @@ describeE2E('ACIA Fullstack Capability Benchmarks', () => {
         // Tests pass
         const backendTests = await runNpm(path.join(projectDir, 'backend'), ['test']);
         expect(backendTests.success).toBe(true);
-        expect(backendTests.stdout).toContain('passing'); // At least some tests pass
+        expect(backendTests.stdout).toContain('passed'); // vitest outputs "X passed"
 
         // ============================================
         // VERIFICATION 3: Frontend Code Quality
