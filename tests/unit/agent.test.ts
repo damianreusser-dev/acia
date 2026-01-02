@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Agent } from '../../src/agents/base/agent.js';
 import { LLMClient } from '../../src/core/llm/client.js';
-import { Tool, ToolDefinition, ToolResult } from '../../src/core/tools/types.js';
+import { Tool } from '../../src/core/tools/types.js';
 
 // Mock LLMClient
 vi.mock('../../src/core/llm/client.js', () => {

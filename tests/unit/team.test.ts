@@ -1,0 +1,550 @@
+/**
+ * Unit tests for Team coordination
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Team } from '../../src/team/team.js';
+import { LLMClient } from '../../src/core/llm/client.js';
+import { Tool } from '../../src/core/tools/types.js';
+
+// Mock LLMClient
+vi.mock('../../src/core/llm/client.js', () => {
+  return {
+    LLMClient: vi.fn().mockImplementation(() => ({
+      chat: vi.fn().mockResolvedValue({
+        content: 'Mock response',
+        stopReason: 'end_turn',
+        usage: { inputTokens: 10, outputTokens: 20 },
+      }),
+    })),
+  };
+});
+
+describe('Team', () => {
+  let mockLLMClient: LLMClient;
+  let mockTools: Tool[];
+
+  beforeEach(() => {
+    mockLLMClient = new LLMClient({ apiKey: 'test-key' });
+
+    mockTools = [
+      {
+        definition: {
+          name: 'read_file',
+          description: 'Read a file',
+          parameters: [
+            { name: 'path', type: 'string', description: 'Path', required: true },
+          ],
+        },
+        execute: vi.fn().mockResolvedValue({ success: true, output: 'File content' }),
+      },
+      {
+        definition: {
+          name: 'write_file',
+          description: 'Write a file',
+          parameters: [
+            { name: 'path', type: 'string', description: 'Path', required: true },
+            { name: 'content', type: 'string', description: 'Content', required: true },
+          ],
+        },
+        execute: vi.fn().mockResolvedValue({ success: true, output: 'File written' }),
+      },
+      {
+        definition: {
+          name: 'list_directory',
+          description: 'List directory',
+          parameters: [
+            { name: 'path', type: 'string', description: 'Path', required: true },
+          ],
+        },
+        execute: vi.fn().mockResolvedValue({ success: true, output: 'file1.ts\nfile2.ts' }),
+      },
+      {
+        definition: {
+          name: 'run_test_file',
+          description: 'Run test file',
+          parameters: [
+            { name: 'testFile', type: 'string', description: 'Test file', required: true },
+          ],
+        },
+        execute: vi.fn().mockResolvedValue({ success: true, output: '5 pass, 0 fail' }),
+      },
+    ];
+  });
+
+  describe('constructor', () => {
+    it('should create a team with PM, Dev, and QA agents', () => {
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+      });
+
+      expect(team.getPMAgent()).toBeDefined();
+      expect(team.getDevAgent()).toBeDefined();
+      expect(team.getQAAgent()).toBeDefined();
+    });
+
+    it('should give PM only read-only tools', () => {
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+      });
+
+      const pmTools = team.getPMAgent().getAvailableTools();
+      expect(pmTools).toContain('read_file');
+      expect(pmTools).toContain('list_directory');
+      expect(pmTools).not.toContain('write_file');
+      expect(pmTools).not.toContain('run_test_file');
+    });
+
+    it('should give Dev all tools', () => {
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+      });
+
+      const devTools = team.getDevAgent().getAvailableTools();
+      expect(devTools).toContain('read_file');
+      expect(devTools).toContain('write_file');
+      expect(devTools).toContain('list_directory');
+      expect(devTools).toContain('run_test_file');
+    });
+
+    it('should give QA all tools', () => {
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+      });
+
+      const qaTools = team.getQAAgent().getAvailableTools();
+      expect(qaTools).toContain('read_file');
+      expect(qaTools).toContain('write_file');
+      expect(qaTools).toContain('run_test_file');
+    });
+
+    it('should pass maxRetries to PM', () => {
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+        maxRetries: 5,
+      });
+
+      expect(team.getPMAgent().getMaxRetries()).toBe(5);
+    });
+
+    it('should set maxIterations', () => {
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+        maxIterations: 5,
+      });
+
+      expect(team.getMaxIterations()).toBe(5);
+    });
+
+    it('should default maxIterations to 3', () => {
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+      });
+
+      expect(team.getMaxIterations()).toBe(3);
+    });
+  });
+
+  describe('getWorkspace', () => {
+    it('should return the workspace path', () => {
+      const team = new Team({
+        workspace: '/my/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+      });
+
+      expect(team.getWorkspace()).toBe('/my/workspace');
+    });
+  });
+
+  describe('executeTask', () => {
+    it('should execute a simple task workflow', async () => {
+      // Mock PM planning response
+      const planResponse = `DEV_TASKS:
+1. [Create module] - Create the main module
+
+QA_TASKS:
+1. [Test module] - Test the module
+
+EXECUTION_ORDER:
+1. DEV:1
+2. QA:1`;
+
+      // Mock responses for the workflow
+      const mockChat = vi
+        .fn()
+        // PM planning
+        .mockResolvedValueOnce({
+          content: planResponse,
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        })
+        // Dev execution
+        .mockResolvedValueOnce({
+          content: 'Successfully created the module.',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        })
+        // QA execution
+        .mockResolvedValueOnce({
+          content: 'All tests passed. 3 pass, 0 fail.',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        });
+
+      const customMockClient = { chat: mockChat } as unknown as LLMClient;
+
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: customMockClient,
+        tools: mockTools,
+      });
+
+      const result = await team.executeTask('Create a greeting module');
+
+      expect(result.success).toBe(true);
+      expect(result.escalated).toBe(false);
+      expect(result.devResults.length).toBe(1);
+      expect(result.qaResults.length).toBe(1);
+      expect(result.breakdown?.devTasks.length).toBe(1);
+      expect(result.breakdown?.qaTasks.length).toBe(1);
+      expect(result.iterations).toBe(1);
+    });
+
+    it('should escalate when planning fails', async () => {
+      const errorMock = {
+        chat: vi.fn().mockRejectedValue(new Error('LLM Error')),
+      } as unknown as LLMClient;
+
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: errorMock,
+        tools: mockTools,
+      });
+
+      const result = await team.executeTask('Create something');
+
+      expect(result.success).toBe(false);
+      expect(result.escalated).toBe(true);
+      expect(result.escalationReason).toContain('Failed to plan task');
+    });
+
+    it('should handle dev task failure and retry', async () => {
+      // Mock responses: plan, dev fail, PM analyze, dev retry success, QA pass
+      const mockChat = vi
+        .fn()
+        // PM planning
+        .mockResolvedValueOnce({
+          content: `DEV_TASKS:
+1. [Create module] - Create the module
+
+QA_TASKS:
+1. [Test module] - Test it
+
+EXECUTION_ORDER:
+1. DEV:1
+2. QA:1`,
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        })
+        // Dev first attempt - fails
+        .mockResolvedValueOnce({
+          content: 'Failed to write file: syntax error',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        })
+        // PM analyzes failure
+        .mockResolvedValueOnce({
+          content: 'Please fix the syntax error and try again.',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        })
+        // Dev retry - succeeds
+        .mockResolvedValueOnce({
+          content: 'Successfully created the module.',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        })
+        // QA passes
+        .mockResolvedValueOnce({
+          content: 'All tests passed.',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        });
+
+      const customMockClient = { chat: mockChat } as unknown as LLMClient;
+
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: customMockClient,
+        tools: mockTools,
+        maxRetries: 3,
+      });
+
+      const result = await team.executeTask('Create a module');
+
+      expect(result.success).toBe(true);
+      expect(result.devResults.length).toBe(2); // Initial + retry
+    });
+
+    it('should escalate after max retries', async () => {
+      const mockChat = vi
+        .fn()
+        // PM planning
+        .mockResolvedValueOnce({
+          content: `DEV_TASKS:
+1. [Create module] - Create module
+
+QA_TASKS:
+1. [Test] - Test
+
+EXECUTION_ORDER:
+1. DEV:1`,
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        })
+        // All attempts fail
+        .mockResolvedValue({
+          content: 'Failed to complete task',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        });
+
+      const customMockClient = { chat: mockChat } as unknown as LLMClient;
+
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: customMockClient,
+        tools: mockTools,
+        maxRetries: 1, // Only 1 attempt allowed
+      });
+
+      const result = await team.executeTask('Create something impossible');
+
+      expect(result.success).toBe(false);
+      expect(result.escalated).toBe(true);
+    });
+
+    it('should use provided priority', async () => {
+      const mockChat = vi.fn().mockResolvedValue({
+        content: `DEV_TASKS:
+1. [Task] - Description
+
+QA_TASKS:
+
+EXECUTION_ORDER:
+1. DEV:1`,
+        stopReason: 'end_turn',
+        usage: { inputTokens: 10, outputTokens: 20 },
+      });
+
+      const customMockClient = { chat: mockChat } as unknown as LLMClient;
+
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: customMockClient,
+        tools: mockTools,
+      });
+
+      const result = await team.executeTask('Critical task', 'critical');
+
+      expect(result.task.priority).toBe('critical');
+    });
+
+    it('should call onEscalation callback when escalating', async () => {
+      const errorMock = {
+        chat: vi.fn().mockRejectedValue(new Error('LLM Error')),
+      } as unknown as LLMClient;
+
+      const onEscalation = vi.fn();
+
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: errorMock,
+        tools: mockTools,
+        onEscalation,
+      });
+
+      await team.executeTask('Create something');
+
+      expect(onEscalation).toHaveBeenCalled();
+      expect(onEscalation.mock.calls[0][0]).toContain('Failed to plan task');
+    });
+
+    it('should call onProgress callback during execution', async () => {
+      const mockChat = vi.fn().mockResolvedValue({
+        content: `DEV_TASKS:
+1. [Task] - Description
+
+QA_TASKS:
+
+EXECUTION_ORDER:
+1. DEV:1`,
+        stopReason: 'end_turn',
+        usage: { inputTokens: 10, outputTokens: 20 },
+      });
+
+      const customMockClient = { chat: mockChat } as unknown as LLMClient;
+      const onProgress = vi.fn();
+
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: customMockClient,
+        tools: mockTools,
+        onProgress,
+      });
+
+      await team.executeTask('Create something');
+
+      expect(onProgress).toHaveBeenCalled();
+      // Should have planning message
+      expect(onProgress.mock.calls.some((call) => call[0].includes('Planning'))).toBe(
+        true
+      );
+    });
+
+    it('should track iterations', async () => {
+      const mockChat = vi.fn().mockResolvedValue({
+        content: `DEV_TASKS:
+1. [Task] - Description
+
+QA_TASKS:
+
+EXECUTION_ORDER:
+1. DEV:1`,
+        stopReason: 'end_turn',
+        usage: { inputTokens: 10, outputTokens: 20 },
+      });
+
+      const customMockClient = { chat: mockChat } as unknown as LLMClient;
+
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: customMockClient,
+        tools: mockTools,
+      });
+
+      const result = await team.executeTask('Task');
+
+      expect(result.iterations).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('iteration loop', () => {
+    it('should create fix tasks when QA fails', async () => {
+      let callCount = 0;
+      const mockChat = vi.fn().mockImplementation(() => {
+        callCount++;
+        // PM planning (call 1)
+        if (callCount === 1) {
+          return Promise.resolve({
+            content: `DEV_TASKS:
+1. [Create feature] - Create the feature
+
+QA_TASKS:
+1. [Test feature] - Test the feature
+
+EXECUTION_ORDER:
+1. DEV:1
+2. QA:1`,
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
+        }
+        // Dev creates feature (call 2)
+        if (callCount === 2) {
+          return Promise.resolve({
+            content: 'Successfully created feature.',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
+        }
+        // QA fails first time (call 3)
+        if (callCount === 3) {
+          return Promise.resolve({
+            content: 'Test failed: missing error handling',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
+        }
+        // All subsequent calls succeed
+        return Promise.resolve({
+          content: 'All tests passed. Successfully completed.',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        });
+      });
+
+      const customMockClient = { chat: mockChat } as unknown as LLMClient;
+
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: customMockClient,
+        tools: mockTools,
+        maxIterations: 3,
+      });
+
+      const result = await team.executeTask('Create feature');
+
+      expect(result.success).toBe(true);
+      expect(result.iterations).toBeGreaterThanOrEqual(1);
+      expect(result.devResults.length).toBeGreaterThanOrEqual(1);
+      expect(result.qaResults.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should stop after maxIterations', async () => {
+      const mockChat = vi
+        .fn()
+        // PM planning
+        .mockResolvedValueOnce({
+          content: `DEV_TASKS:
+1. [Create feature] - Create the feature
+
+QA_TASKS:
+1. [Test feature] - Test the feature
+
+EXECUTION_ORDER:
+1. DEV:1
+2. QA:1`,
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        })
+        // All responses fail
+        .mockResolvedValue({
+          content: 'Test failed',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        });
+
+      const customMockClient = { chat: mockChat } as unknown as LLMClient;
+
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: customMockClient,
+        tools: mockTools,
+        maxIterations: 2,
+      });
+
+      const result = await team.executeTask('Create feature');
+
+      expect(result.success).toBe(false);
+      expect(result.escalated).toBe(true);
+      expect(result.escalationReason).toContain('Max iterations');
+      expect(result.iterations).toBe(2);
+    });
+  });
+});
