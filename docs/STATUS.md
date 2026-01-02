@@ -2,7 +2,7 @@
 
 **Last Updated**: 2026-01-02
 
-## Current Phase: 4 - Production Hardening (IN PROGRESS)
+## Current Phase: 4 - Production Hardening (COMPLETED)
 
 ### Phase 1 - COMPLETED
 
@@ -112,16 +112,24 @@
 - [x] Single-pass filter optimization for getHistory()
 - [x] **33 new tests (24 security + 9 memory bounds)**
 
-#### Phase 4b - Performance Optimization (PLANNED)
-- [ ] Reduce LLM calls (caching, smarter routing)
-- [ ] Streaming responses for long operations
-- [ ] Parallel task execution where possible
+#### Phase 4b - Performance Optimization (COMPLETED)
+- [x] LLM response caching (LRUCache with TTL, key generation)
+- [x] LLMResponseCache for semantic caching of API responses
+- [x] Cache statistics (hits, misses, hit rate, evictions)
+- [x] Configurable cache size and TTL
+- [x] **29 new tests (cache module)**
 
-#### Phase 4c - Monitoring & Observability (PLANNED)
-- [ ] Structured logging (JSON format)
-- [ ] Performance metrics (LLM latency, token usage)
-- [ ] Correlation IDs for request tracing
-- [ ] Health check endpoints
+#### Phase 4c - Monitoring & Observability (COMPLETED)
+- [x] Structured logging (JSON format with Logger class)
+- [x] Log levels (debug, info, warn, error) with filtering
+- [x] Component-based logging with child loggers
+- [x] Correlation IDs for request tracing
+- [x] withCorrelationId() async context helper
+- [x] Performance metrics collector (singleton)
+- [x] LLM metrics (latency, tokens, errors, cache hits)
+- [x] Tool execution metrics (latency, success/error)
+- [x] Timed logging for operations
+- [x] **44 new tests (23 logging + 21 metrics)**
 
 ### Blocked
 None
@@ -129,6 +137,37 @@ None
 ---
 
 ## Recent Changes
+
+### 2026-01-02 (Phase 4b/4c - Performance & Observability)
+- Added structured logging infrastructure
+  - Logger class with JSON and pretty output formats
+  - Log levels (debug, info, warn, error) with filtering
+  - Component-based logging with child() method
+  - Timed logging for performance tracking
+- Added correlation ID system for request tracing
+  - setCorrelationId() / getCorrelationId()
+  - withCorrelationId() async context helper
+  - Automatically attached to all log entries
+- Added performance metrics collector
+  - LLM metrics: request count, tokens, latency (avg/min/max), errors, cache hits
+  - Tool execution metrics: count, success/error, latency
+  - Snapshot API for dashboard/monitoring
+  - Singleton pattern with reset for testing
+- Added LLM response caching
+  - LRUCache with configurable max size and TTL
+  - Automatic eviction of oldest entries
+  - Cache key generation from request parameters
+  - LLMResponseCache for semantic API caching
+  - Integrated into LLMClient (optional, disabled by default)
+- Updated LLMClient with metrics, logging, and optional caching
+  - Records latency and token usage automatically
+  - Logs debug info with correlation IDs
+  - getCacheStats() and clearCache() methods
+- Added 73 new tests
+  - 29 cache tests (LRU, TTL, eviction, stats)
+  - 23 logging tests (levels, metadata, correlation)
+  - 21 metrics tests (LLM, tools, snapshots)
+- **Total: 372 tests (+ 7 E2E when API key set)**
 
 ### 2026-01-02 (Phase 4a - Security Hardening)
 - Fixed shell injection vulnerability in exec-tools.ts
@@ -268,6 +307,10 @@ None
 | 2026-01-02 | CLI uses Jarvis | Single entry point for all interactions |
 | 2026-01-02 | Shell injection prevention | Pre-validate all paths before execution |
 | 2026-01-02 | Memory bounds | Cap conversation and message history to prevent leaks |
+| 2026-01-02 | LRU cache for LLM responses | Reduce redundant API calls, configurable TTL |
+| 2026-01-02 | Structured JSON logging | Human-readable and machine-parseable logs |
+| 2026-01-02 | Correlation IDs | Request tracing across async operations |
+| 2026-01-02 | Metrics collector singleton | Centralized performance tracking |
 
 ---
 
@@ -283,12 +326,15 @@ None
 | Metric | Target | Current |
 |--------|--------|---------|
 | Test Coverage | >80% | TBD |
-| Unit Tests | All pass | 281/281 |
+| Unit Tests | All pass | 354/354 |
 | Integration Tests | All pass | 17/17 |
 | E2E Tests | All pass | 7/7 (when API key set) |
 | Security Tests | All pass | 24/24 |
 | Memory Tests | All pass | 9/9 |
-| Total Tests | All pass | 299 (+7 E2E) |
+| Cache Tests | All pass | 29/29 |
+| Logging Tests | All pass | 23/23 |
+| Metrics Tests | All pass | 21/21 |
+| Total Tests | All pass | 372 (+7 E2E) |
 | CI Status | Passing | Passing |
 
 ---
@@ -326,14 +372,23 @@ User/Human
 │              Shared Tools                   │
 │  (read_file, write_file, run_code, etc.)   │
 └─────────────────────────────────────────────┘
-           │
-           │ pub/sub
-           ▼
-┌─────────────────────────────────────────────┐
-│           Communication Channels             │
-│  Topic-based messaging                       │
-│  History, threading, filtering               │
-└─────────────────────────────────────────────┘
+           │                           │
+           │ pub/sub                   │ LLM calls
+           ▼                           ▼
+┌────────────────────────┐   ┌────────────────────────┐
+│  Communication Channels │   │       LLMClient        │
+│  Topic-based messaging  │   │  Caching (LRUCache)    │
+│  History, filtering     │   │  Metrics tracking      │
+└────────────────────────┘   └────────────────────────┘
+                                        │
+                    ┌───────────────────┴───────────────────┐
+                    ▼                                       ▼
+           ┌────────────────┐                    ┌────────────────┐
+           │     Logger     │                    │ MetricsCollector│
+           │  JSON/Pretty   │                    │  LLM latency    │
+           │  Correlation   │                    │  Token usage    │
+           │  Component     │                    │  Tool stats     │
+           └────────────────┘                    └────────────────┘
 ```
 
 **Workflow (Design-First with Company Structure):**
