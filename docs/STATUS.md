@@ -137,7 +137,7 @@
 
 **Benchmark**: `tests/e2e/benchmarks/fullstack-capability.test.ts`
 
-#### Phase 5a - Architecture Foundation (IN PROGRESS)
+#### Phase 5a - Architecture Foundation (COMPLETED)
 - [x] ArchitectAgent for system design and API contracts
 - [x] SystemDesign interface with overview, file structure, API contracts, data models
 - [x] ApiContract interface for endpoint definitions
@@ -149,9 +149,18 @@
 - [x] git_init, git_add, git_commit, git_status, git_branch, git_log tools
 - [x] Security: path validation, message sanitization, shell: false
 - [x] **34 new tests (GitTools)**
-- [ ] Specialized DevAgents (FrontendDevAgent, BackendDevAgent)
-- [ ] Project templates (React, Express, Fullstack)
-- [ ] Multi-team coordination in CEO
+
+#### Phase 5c - Specialized Agents & Templates (COMPLETED)
+- [x] FrontendDevAgent (React/TypeScript specialist)
+- [x] BackendDevAgent (Node/Express specialist)
+- [x] Keyword-based agent selection in Team
+- [x] Project templates (React + Vite, Express)
+- [x] TemplateService for project scaffolding
+- [x] createFullstackProject() for combined projects
+- [x] Multi-team coordination in CEO (executeGoalMultiTeam)
+- [x] Parallel team execution with result aggregation
+- [x] JarvisAgent.handleRequest() for benchmarks
+- [x] **82 new tests (26 specialized agents + 18 templates + 10 team selection + 6 CEO multi-team + 3 Jarvis handleRequest + 19 existing team tests)**
 
 #### Phase 5b - Git Integration (COMPLETED)
 - [x] GitInitTool - Initialize git repositories
@@ -176,6 +185,34 @@ None
 ---
 
 ## Recent Changes
+
+### 2026-01-02 (Phase 5c - Specialized Agents & Templates)
+- Added FrontendDevAgent (React/TypeScript specialist)
+  - UI-focused system prompt
+  - React component expertise
+  - Accessibility and responsive design knowledge
+- Added BackendDevAgent (Node/Express specialist)
+  - API-focused system prompt
+  - REST and database expertise
+  - Security and performance focus
+- Added keyword-based agent selection to Team
+  - Frontend keywords: react, component, tsx, jsx, ui, css, tailwind, etc.
+  - Backend keywords: api, endpoint, route, express, database, etc.
+  - Explicit agent type override via task context
+  - Falls back to general DevAgent for ambiguous tasks
+- Added project template system
+  - React template: Vite + TypeScript + Vitest + testing-library
+  - Express template: TypeScript + cors + helmet + health routes
+  - TemplateService for preview and generation
+  - createFullstackProject() for combined projects
+- Enhanced CEO with multi-team coordination
+  - executeGoalMultiTeam() for parallel team execution
+  - LLM-based project assignment to teams
+  - Result aggregation across teams
+  - getCoordinationStatus() for monitoring
+- Added JarvisAgent.handleRequest() for benchmark compatibility
+- Added 82 new tests
+- **Total: 495 tests (+8 E2E when API key set)**
 
 ### 2026-01-02 (Phase 5a - Architecture Foundation)
 - Added ArchitectAgent for system design
@@ -398,9 +435,9 @@ None
 | Metric | Target | Current |
 |--------|--------|---------|
 | Test Coverage | >80% | TBD |
-| Unit Tests | All pass | 388/388 |
+| Unit Tests | All pass | 470/470 |
 | Integration Tests | All pass | 17/17 |
-| E2E Tests | All pass | 7/7 (when API key set) |
+| E2E Tests | All pass | 8/8 (when API key set) |
 | Benchmark Tests | - | 8 (Phase 5 target) |
 | Security Tests | All pass | 24/24 |
 | Memory Tests | All pass | 9/9 |
@@ -409,7 +446,11 @@ None
 | Metrics Tests | All pass | 21/21 |
 | ArchitectAgent Tests | All pass | 26/26 |
 | GitTools Tests | All pass | 34/34 |
-| Total Tests | All pass | 413 (+7 E2E) |
+| Specialized Agents Tests | All pass | 26/26 |
+| Templates Tests | All pass | 18/18 |
+| Team Selection Tests | All pass | 10/10 |
+| CEO Multi-Team Tests | All pass | 6/6 |
+| Total Tests | All pass | 495 (+8 E2E) |
 | CI Status | Passing | Passing |
 
 ---
