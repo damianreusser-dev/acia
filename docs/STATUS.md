@@ -182,6 +182,14 @@
 - [x] getWorkspace() accessor
 - [x] **5 new tests (workspace mode, metrics tracking)**
 
+#### Phase 5e - Template Tools (COMPLETED)
+- [x] list_templates tool to list available project templates
+- [x] generate_project tool to scaffold projects from templates
+- [x] preview_template tool to preview template structure
+- [x] Fullstack template support (React + Express combined)
+- [x] Template tools auto-included in Jarvis workspace mode
+- [x] **11 new tests (template tools)**
+
 **Success Criteria**:
 - [ ] Benchmark test passes (todo app with React + Express)
 - [ ] All generated code compiles
@@ -194,6 +202,16 @@ None
 ---
 
 ## Recent Changes
+
+### 2026-01-02 (Phase 5e - Template Tools)
+- Added template tools for agent-driven scaffolding
+  - list_templates: List available project templates
+  - generate_project: Scaffold projects from templates
+  - preview_template: Preview template structure
+- Fullstack template creates both React and Express projects
+- Jarvis auto-includes template tools in workspace mode
+- Added 11 new tests for template tools
+- **Total: 511 tests (+8 E2E when API key set)**
 
 ### 2026-01-02 (Phase 5d - Benchmark Infrastructure)
 - Enhanced JarvisAgent for benchmark testing
@@ -472,7 +490,8 @@ None
 | Team Selection Tests | All pass | 10/10 |
 | CEO Multi-Team Tests | All pass | 6/6 |
 | Jarvis Workspace Tests | All pass | 5/5 |
-| Total Tests | All pass | 500 (+8 E2E) |
+| Template Tools Tests | All pass | 11/11 |
+| Total Tests | All pass | 511 (+8 E2E) |
 | CI Status | Passing | Passing |
 
 ---
