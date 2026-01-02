@@ -439,6 +439,72 @@ describe('JarvisAgent', () => {
     });
   });
 
+  describe('workspace mode', () => {
+    it('should accept workspace path and auto-create tools', () => {
+      // Create with workspace only (no llmClient or tools)
+      // This would fail in production without API key, but we can test the structure
+      const agent = new JarvisAgent({
+        llmClient: mockLLMClient, // Still need mock for testing
+        workspace: '/test/workspace',
+      });
+
+      expect(agent.getWorkspace()).toBe('/test/workspace');
+    });
+
+    it('should default workspace to cwd when not provided', () => {
+      const agent = new JarvisAgent({
+        llmClient: mockLLMClient,
+        tools: [],
+      });
+
+      expect(agent.getWorkspace()).toBe(process.cwd());
+    });
+  });
+
+  describe('getMetrics', () => {
+    it('should return metrics object', () => {
+      const metrics = jarvisAgent.getMetrics();
+
+      expect(metrics).toHaveProperty('tokensUsed');
+      expect(metrics).toHaveProperty('requestCount');
+      expect(metrics).toHaveProperty('uptime');
+      expect(metrics).toHaveProperty('companiesCount');
+    });
+
+    it('should track request count', async () => {
+      (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: 'ACTION: direct_response\nRESPONSE: Hello!',
+        stopReason: 'end_turn',
+        usage: { inputTokens: 100, outputTokens: 50 },
+      });
+
+      expect(jarvisAgent.getMetrics().requestCount).toBe(0);
+
+      await jarvisAgent.handleRequest('Hello');
+      expect(jarvisAgent.getMetrics().requestCount).toBe(1);
+
+      await jarvisAgent.handleRequest('Again');
+      expect(jarvisAgent.getMetrics().requestCount).toBe(2);
+    });
+
+    it('should track company count', () => {
+      const mockCEO = {} as CEOAgent;
+
+      expect(jarvisAgent.getMetrics().companiesCount).toBe(0);
+
+      jarvisAgent.registerCompany({
+        id: 'test',
+        name: 'Test',
+        domain: 'Testing',
+        ceo: mockCEO,
+        createdAt: new Date(),
+        status: 'active',
+      });
+
+      expect(jarvisAgent.getMetrics().companiesCount).toBe(1);
+    });
+  });
+
   describe('handleRequest (benchmark interface)', () => {
     it('should return simplified success response', async () => {
       (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockResolvedValue({

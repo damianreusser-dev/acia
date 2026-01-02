@@ -11,6 +11,10 @@ import { Tool } from '../../core/tools/types.js';
 import { LLMClient } from '../../core/llm/client.js';
 import { CEOAgent, CEOResult } from './ceo-agent.js';
 import { WikiService } from '../../core/wiki/wiki-service.js';
+import { createFileTools } from '../../core/tools/file-tools.js';
+import { createExecTools } from '../../core/tools/exec-tools.js';
+import { createGitTools } from '../../core/tools/git-tools.js';
+import { getMetrics as getGlobalMetrics } from '../../core/metrics/metrics.js';
 
 const JARVIS_SYSTEM_PROMPT = `You are JARVIS, the universal AI assistant and entry point for the ACIA (Autonomous Company Intelligence Architecture) system.
 
@@ -36,11 +40,19 @@ When handling escalations:
 You are the bridge between humans and the autonomous system.
 Always be helpful, clear, and transparent about what's happening.`;
 
+/**
+ * Configuration for JarvisAgent
+ * Supports two modes:
+ * 1. Explicit: Provide llmClient and tools directly
+ * 2. Workspace: Provide workspace path and tools are auto-created
+ */
 export interface JarvisAgentConfig {
   name?: string;
-  llmClient: LLMClient;
-  tools: Tool[];
+  llmClient?: LLMClient;
+  tools?: Tool[];
   wikiService?: WikiService;
+  /** Workspace directory - if provided, tools are auto-created */
+  workspace?: string;
 }
 
 export interface Company {
@@ -79,19 +91,48 @@ export class JarvisAgent extends Agent {
   private conversation: ConversationEntry[] = [];
   private onHumanEscalation?: (reason: string, context: unknown) => void;
   private agentTools: Tool[];
+  private workspace: string;
+  private metricsData: {
+    tokensUsed: number;
+    requestCount: number;
+    startTime: Date;
+  };
 
   constructor(config: JarvisAgentConfig) {
+    // Resolve workspace
+    const workspace = config.workspace ?? process.cwd();
+
+    // Create LLM client if not provided
+    const llmClient = config.llmClient ?? new LLMClient({
+      apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+    });
+
+    // Create tools if not provided (workspace mode)
+    let tools = config.tools;
+    if (!tools || tools.length === 0) {
+      const fileTools = createFileTools(workspace);
+      const execTools = createExecTools(workspace, ['test', 'build', 'typecheck', 'dev', 'lint']);
+      const gitTools = createGitTools(workspace);
+      tools = [...fileTools, ...execTools, ...gitTools];
+    }
+
     const agentConfig: AgentConfig = {
       name: config.name ?? 'JARVIS',
       role: 'Universal Assistant',
       systemPrompt: JARVIS_SYSTEM_PROMPT,
-      llmClient: config.llmClient,
-      tools: config.tools,
+      llmClient,
+      tools,
     };
     super(agentConfig);
     this.wikiService = config.wikiService;
-    this.jarvisLLMClient = config.llmClient;
-    this.agentTools = config.tools;
+    this.jarvisLLMClient = llmClient;
+    this.agentTools = tools;
+    this.workspace = workspace;
+    this.metricsData = {
+      tokensUsed: 0,
+      requestCount: 0,
+      startTime: new Date(),
+    };
   }
 
   /**
@@ -299,6 +340,30 @@ RESPONSE: [direct answer, if direct_response or status]`;
       wikiService: this.wikiService,
     });
 
+    // Create default teams for the CEO
+    // The teams share the same workspace and tools as Jarvis
+    ceo.createTeam('default', {
+      workspace: this.workspace,
+      llmClient: this.jarvisLLMClient,
+      tools: this.agentTools,
+    });
+
+    // For fullstack projects, create specialized teams
+    if (domain.toLowerCase().includes('fullstack') ||
+        domain.toLowerCase().includes('web') ||
+        domain.toLowerCase().includes('application')) {
+      ceo.createTeam('frontend', {
+        workspace: this.workspace,
+        llmClient: this.jarvisLLMClient,
+        tools: this.agentTools,
+      });
+      ceo.createTeam('backend', {
+        workspace: this.workspace,
+        llmClient: this.jarvisLLMClient,
+        tools: this.agentTools,
+      });
+    }
+
     // Register the company
     const company: Company = {
       id: companyId,
@@ -492,11 +557,51 @@ Company created to handle: ${company.domain}
    * This is a convenience method that wraps processRequest for benchmark testing.
    * It returns a simplified response format with just success and output fields.
    */
-  async handleRequest(request: string): Promise<{ success: boolean; output: string }> {
+  async handleRequest(request: string): Promise<{
+    success: boolean;
+    output: string;
+    status?: string;
+    response?: string;
+    escalation?: string;
+  }> {
+    this.metricsData.requestCount++;
     const result = await this.processRequest(request);
+
+    // Track token usage from global metrics
+    const globalMetrics = getGlobalMetrics();
+    const snapshot = globalMetrics.getSnapshot();
+    this.metricsData.tokensUsed = snapshot.llm.totalInputTokens + snapshot.llm.totalOutputTokens;
+
     return {
       success: result.success,
       output: result.response,
+      status: result.success ? 'completed' : 'failed',
+      response: result.response,
+      escalation: result.humanEscalationReason,
     };
+  }
+
+  /**
+   * Get metrics for monitoring and benchmarks
+   */
+  getMetrics(): {
+    tokensUsed: number;
+    requestCount: number;
+    uptime: number;
+    companiesCount: number;
+  } {
+    return {
+      tokensUsed: this.metricsData.tokensUsed,
+      requestCount: this.metricsData.requestCount,
+      uptime: Date.now() - this.metricsData.startTime.getTime(),
+      companiesCount: this.companies.size,
+    };
+  }
+
+  /**
+   * Get the workspace directory
+   */
+  getWorkspace(): string {
+    return this.workspace;
   }
 }
