@@ -2,7 +2,7 @@
 
 **Last Updated**: 2026-01-02
 
-## Current Phase: 3 - Enhanced Capabilities (COMPLETED)
+## Current Phase: 4 - Production Hardening (IN PROGRESS)
 
 ### Phase 1 - COMPLETED
 
@@ -97,12 +97,59 @@
 - [x] Human escalation callbacks
 - [x] **84 new tests (19 CEO + 22 Jarvis + 43 Channel)**
 
+### Phase 4 - Production Hardening (IN PROGRESS)
+
+#### Phase 4a - Security Hardening (COMPLETED)
+- [x] Shell injection prevention (shell: false on Unix, pre-validated on Windows)
+- [x] Path traversal prevention for all exec tools
+- [x] Input sanitization (dangerous character blocklist)
+- [x] Null byte injection prevention
+- [x] Absolute path rejection
+- [x] Workspace boundary enforcement
+- [x] Memory bounds for Agent conversation history (MAX_HISTORY_SIZE = 100)
+- [x] Memory bounds for Channel message history (configurable, default 1000)
+- [x] Channel.destroy() for cleanup
+- [x] Single-pass filter optimization for getHistory()
+- [x] **33 new tests (24 security + 9 memory bounds)**
+
+#### Phase 4b - Performance Optimization (PLANNED)
+- [ ] Reduce LLM calls (caching, smarter routing)
+- [ ] Streaming responses for long operations
+- [ ] Parallel task execution where possible
+
+#### Phase 4c - Monitoring & Observability (PLANNED)
+- [ ] Structured logging (JSON format)
+- [ ] Performance metrics (LLM latency, token usage)
+- [ ] Correlation IDs for request tracing
+- [ ] Health check endpoints
+
 ### Blocked
 None
 
 ---
 
 ## Recent Changes
+
+### 2026-01-02 (Phase 4a - Security Hardening)
+- Fixed shell injection vulnerability in exec-tools.ts
+  - Uses shell: false on Unix systems
+  - On Windows, pre-validates all args before shell execution
+  - Added dangerous character blocklist (;&|`$(){}[]<>!#*?\\'" etc.)
+  - Added null byte injection prevention
+  - Added absolute path rejection
+- Fixed path traversal in all execution tools
+  - RunTestFileTool now validates paths against workspace
+  - RunCodeTool already had protection, now enhanced
+  - Consistent isPathWithinWorkspace() check
+- Added memory bounds to prevent leaks
+  - Agent conversation history capped at 100 messages
+  - Channel message history configurable (default 1000)
+  - Added Channel.destroy() for cleanup
+  - Optimized getHistory() with single-pass filtering
+- Added comprehensive security test suite
+  - 24 security tests (path traversal, injection, validation)
+  - 9 memory bounds tests
+- **Total: 299 tests (+ 7 E2E when API key set)**
 
 ### 2026-01-02 (CLI Upgrade + Full E2E Validation)
 - Upgraded CLI to use Jarvis as universal entry point
@@ -219,13 +266,15 @@ None
 | 2026-01-02 | Jarvis as entry point | Single universal interface for users |
 | 2026-01-02 | Pub/Sub Channels | Flexible agent-to-agent communication |
 | 2026-01-02 | CLI uses Jarvis | Single entry point for all interactions |
+| 2026-01-02 | Shell injection prevention | Pre-validate all paths before execution |
+| 2026-01-02 | Memory bounds | Cap conversation and message history to prevent leaks |
 
 ---
 
 ## Known Issues
 
 1. **CLI pipe input on Windows**: Works fine in interactive mode.
-2. **Deprecation warning**: spawn with shell option - safe for our use case.
+2. **Deprecation warning**: spawn with shell option on Windows - necessary for npm/npx, mitigated by input validation.
 
 ---
 
@@ -234,10 +283,12 @@ None
 | Metric | Target | Current |
 |--------|--------|---------|
 | Test Coverage | >80% | TBD |
-| Unit Tests | All pass | 248/248 |
+| Unit Tests | All pass | 281/281 |
 | Integration Tests | All pass | 17/17 |
 | E2E Tests | All pass | 7/7 (when API key set) |
-| Total Tests | All pass | 266 (+7 E2E) |
+| Security Tests | All pass | 24/24 |
+| Memory Tests | All pass | 9/9 |
+| Total Tests | All pass | 299 (+7 E2E) |
 | CI Status | Passing | Passing |
 
 ---

@@ -34,6 +34,12 @@ export class Agent {
   private conversationHistory: LLMMessage[] = [];
   private tools: Map<string, Tool> = new Map();
 
+  /** Maximum number of messages to retain in conversation history */
+  private static readonly MAX_HISTORY_SIZE = 100;
+
+  /** Default maximum iterations for tool execution loop */
+  private static readonly DEFAULT_MAX_ITERATIONS = 10;
+
   constructor(config: AgentConfig) {
     this.name = config.name;
     this.role = config.role;
@@ -48,10 +54,22 @@ export class Agent {
   }
 
   /**
+   * Add a message to conversation history with bounds enforcement.
+   * Removes oldest messages when limit is exceeded.
+   */
+  private addToHistory(message: LLMMessage): void {
+    this.conversationHistory.push(message);
+    // Enforce memory bounds - keep conversation manageable
+    while (this.conversationHistory.length > Agent.MAX_HISTORY_SIZE) {
+      this.conversationHistory.shift();
+    }
+  }
+
+  /**
    * Process an incoming message and generate a response
    */
   async processMessage(message: string): Promise<string> {
-    this.conversationHistory.push({
+    this.addToHistory({
       role: 'user',
       content: message,
     });
@@ -62,7 +80,7 @@ export class Agent {
       systemPromptWithTools
     );
 
-    this.conversationHistory.push({
+    this.addToHistory({
       role: 'assistant',
       content: response.content,
     });
@@ -76,9 +94,9 @@ export class Agent {
    */
   async processMessageWithTools(
     message: string,
-    maxIterations: number = 10
+    maxIterations: number = Agent.DEFAULT_MAX_ITERATIONS
   ): Promise<string> {
-    this.conversationHistory.push({
+    this.addToHistory({
       role: 'user',
       content: message,
     });
@@ -95,7 +113,7 @@ export class Agent {
         systemPromptWithTools
       );
 
-      this.conversationHistory.push({
+      this.addToHistory({
         role: 'assistant',
         content: response.content,
       });
@@ -117,7 +135,7 @@ export class Agent {
         ? `Tool "${toolCall.tool}" executed successfully:\n${toolResult.output}`
         : `Tool "${toolCall.tool}" failed:\n${toolResult.error}`;
 
-      this.conversationHistory.push({
+      this.addToHistory({
         role: 'user',
         content: `<tool_result>\n${resultMessage}\n</tool_result>`,
       });

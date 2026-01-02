@@ -41,12 +41,33 @@ export class Channel {
   private retainHistory: boolean;
   private maxHistorySize: number;
 
+  /** Default maximum history size to prevent unbounded memory growth */
+  private static readonly DEFAULT_MAX_HISTORY_SIZE = 1000;
+
   constructor(config: ChannelConfig) {
     this.name = config.name;
     this.description = config.description ?? '';
     this.emitter = new EventEmitter();
     this.retainHistory = config.retainHistory ?? true;
-    this.maxHistorySize = config.maxHistorySize ?? 1000;
+    this.maxHistorySize = config.maxHistorySize ?? Channel.DEFAULT_MAX_HISTORY_SIZE;
+  }
+
+  /**
+   * Destroy the channel, cleaning up all resources.
+   * Should be called when the channel is no longer needed.
+   */
+  destroy(): void {
+    // Unsubscribe all listeners
+    for (const subscription of this.subscriptions.values()) {
+      this.emitter.off(subscription.topic, subscription.callback);
+    }
+    this.subscriptions.clear();
+
+    // Clear history
+    this.history = [];
+
+    // Remove all event listeners
+    this.emitter.removeAllListeners();
   }
 
   /**
@@ -178,7 +199,8 @@ export class Channel {
   }
 
   /**
-   * Get message history
+   * Get message history with optional filtering.
+   * Uses single-pass filtering for better performance.
    */
   getHistory(options?: {
     topic?: string;
@@ -187,29 +209,20 @@ export class Channel {
     since?: Date;
     limit?: number;
   }): Message[] {
-    let messages = [...this.history];
-
-    if (options?.topic) {
-      messages = messages.filter((m) => m.topic === options.topic);
-    }
-
-    if (options?.from) {
-      messages = messages.filter((m) => m.from === options.from);
-    }
-
-    if (options?.to) {
-      messages = messages.filter((m) => m.to === options.to);
-    }
-
-    if (options?.since) {
-      messages = messages.filter((m) => m.timestamp >= options.since!);
-    }
+    // Single-pass filter for better performance (O(n) instead of O(n×filters))
+    let messages = this.history.filter((m) =>
+      (!options?.topic || m.topic === options.topic) &&
+      (!options?.from || m.from === options.from) &&
+      (!options?.to || m.to === options.to) &&
+      (!options?.since || m.timestamp >= options.since)
+    );
 
     if (options?.limit) {
       messages = messages.slice(-options.limit);
     }
 
-    return messages;
+    // Return a copy to prevent external mutation
+    return [...messages];
   }
 
   /**

@@ -3,6 +3,11 @@
  *
  * Provides sandboxed command execution for agents.
  * Commands are executed within a configured workspace directory.
+ *
+ * SECURITY NOTES:
+ * - shell: false is used to prevent shell injection attacks
+ * - All paths are validated against the workspace boundary
+ * - Only allowlisted commands and scripts are permitted
  */
 
 import { spawn } from 'child_process';
@@ -15,19 +20,80 @@ export interface ExecResult {
   exitCode: number;
 }
 
+/** Default timeout for command execution (30 seconds) */
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+/** Timeout for test execution (60 seconds) */
+const TEST_TIMEOUT_MS = 60_000;
+
 /**
- * Execute a command with timeout
+ * Validate that a path is within the workspace boundary.
+ * Prevents path traversal attacks (e.g., "../../../etc/passwd").
+ */
+function isPathWithinWorkspace(workspacePath: string, filePath: string): boolean {
+  const normalizedWorkspace = path.normalize(workspacePath);
+  const resolvedPath = path.resolve(workspacePath, filePath);
+  return resolvedPath.startsWith(normalizedWorkspace + path.sep) || resolvedPath === normalizedWorkspace;
+}
+
+/**
+ * Sanitize a file path to prevent injection.
+ * Rejects paths containing shell metacharacters.
+ */
+function sanitizePath(filePath: string): { valid: boolean; error?: string } {
+  // Reject paths with shell metacharacters
+  const dangerousChars = /[;&|`$(){}[\]<>!#*?\\'"]/;
+  if (dangerousChars.test(filePath)) {
+    return { valid: false, error: 'Path contains invalid characters' };
+  }
+
+  // Reject paths with null bytes
+  if (filePath.includes('\0')) {
+    return { valid: false, error: 'Path contains null bytes' };
+  }
+
+  // Reject absolute paths on Windows (drive letters) or Unix
+  if (/^[a-zA-Z]:/.test(filePath) || filePath.startsWith('/')) {
+    return { valid: false, error: 'Absolute paths are not allowed' };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Determine if we're running on Windows.
+ * Used to adjust command execution for platform differences.
+ */
+const IS_WINDOWS = process.platform === 'win32';
+
+/**
+ * Execute a command with timeout.
+ *
+ * SECURITY NOTES:
+ * - On Unix: shell: false is used to prevent shell injection attacks
+ * - On Windows: We must use shell: true for npm/npx commands (they are .cmd files)
+ *   BUT we pre-validate all arguments through sanitizePath() before execution
+ *   so no untrusted user input reaches the shell
+ * - All file paths are validated against:
+ *   1. Dangerous character blocklist (sanitizePath)
+ *   2. Workspace boundary check (isPathWithinWorkspace)
+ *   3. Extension allowlist (.ts, .js, .test.ts, .test.js)
  */
 async function execCommand(
   command: string,
   args: string[],
   cwd: string,
-  timeoutMs: number = 30000
+  timeoutMs: number = DEFAULT_TIMEOUT_MS
 ): Promise<ExecResult> {
   return new Promise((resolve) => {
+    // On Windows, npm/npx are .cmd files that require shell to run
+    // This is safe because we pre-validate all arguments through sanitizePath()
+    // and isPathWithinWorkspace() before they reach this function
+    const useShell = IS_WINDOWS && (command === 'npm' || command === 'npx');
+
     const proc = spawn(command, args, {
       cwd,
-      shell: true,
+      shell: useShell,
       timeout: timeoutMs,
     });
 
@@ -157,11 +223,22 @@ export class RunTestFileTool implements Tool {
       return { success: false, error: 'Test file must end with .test.ts or .test.js' };
     }
 
+    // SECURITY: Sanitize path to prevent injection
+    const sanitizeResult = sanitizePath(testFile);
+    if (!sanitizeResult.valid) {
+      return { success: false, error: `Invalid test file path: ${sanitizeResult.error}` };
+    }
+
+    // SECURITY: Prevent path traversal attacks
+    if (!isPathWithinWorkspace(this.workspacePath, testFile)) {
+      return { success: false, error: 'Access denied: test file path is outside workspace' };
+    }
+
     const result = await execCommand(
       'npx',
       ['vitest', 'run', testFile, '--reporter=verbose'],
       this.workspacePath,
-      60000 // 60 second timeout for tests
+      TEST_TIMEOUT_MS
     );
 
     const output = [
@@ -217,9 +294,14 @@ export class RunCodeTool implements Tool {
       return { success: false, error: 'File must be a .ts or .js file' };
     }
 
-    // Security: prevent path traversal
-    const resolvedPath = path.resolve(this.workspacePath, file);
-    if (!resolvedPath.startsWith(path.normalize(this.workspacePath))) {
+    // SECURITY: Sanitize path to prevent injection
+    const sanitizeResult = sanitizePath(file);
+    if (!sanitizeResult.valid) {
+      return { success: false, error: `Invalid file path: ${sanitizeResult.error}` };
+    }
+
+    // SECURITY: Prevent path traversal attacks
+    if (!isPathWithinWorkspace(this.workspacePath, file)) {
       return { success: false, error: 'Access denied: path is outside workspace' };
     }
 
@@ -227,7 +309,7 @@ export class RunCodeTool implements Tool {
       'npx',
       ['tsx', file],
       this.workspacePath,
-      30000 // 30 second timeout
+      DEFAULT_TIMEOUT_MS
     );
 
     const output = [
