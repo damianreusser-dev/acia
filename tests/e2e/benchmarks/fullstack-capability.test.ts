@@ -363,7 +363,7 @@ describeE2E('ACIA Fullstack Capability Benchmarks', () => {
 
       // Should communicate back what it understood or needs
       expect(result.response || result.escalation).toBeDefined();
-    });
+    }, 60000); // 1 minute timeout for LLM call
 
     /**
      * BENCHMARK TEST 5: Recover from Errors

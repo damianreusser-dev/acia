@@ -113,11 +113,11 @@ export class GenerateProjectTool implements Tool {
         output:
           `Successfully generated fullstack project "${projectName}"!\n\n` +
           `Created ${result.filesCreated.length} files:\n` +
-          `Frontend: ${projectName}-frontend/\n` +
-          `Backend: ${projectName}-backend/\n\n` +
+          `Frontend: ${projectName}/frontend/\n` +
+          `Backend: ${projectName}/backend/\n\n` +
           `Next steps:\n` +
-          `1. cd ${projectName}-backend && npm install && npm run dev\n` +
-          `2. cd ${projectName}-frontend && npm install && npm run dev\n`,
+          `1. cd ${projectName}/backend && npm install && npm run dev\n` +
+          `2. cd ${projectName}/frontend && npm install && npm run dev\n`,
       };
     }
 

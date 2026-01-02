@@ -245,19 +245,24 @@ describe('createFullstackProject', () => {
 
     expect(result.success).toBe(true);
 
-    // Check frontend was created
-    expect(result.filesCreated.some((f) => f.startsWith('my-fullstack-frontend/'))).toBe(true);
+    // Check frontend was created in frontend/ subdirectory
+    expect(result.filesCreated.some((f) => f.startsWith('frontend/'))).toBe(true);
     expect(result.filesCreated.some((f) => f.includes('App.tsx'))).toBe(true);
 
-    // Check backend was created
-    expect(result.filesCreated.some((f) => f.startsWith('my-fullstack-backend/'))).toBe(true);
-    expect(result.filesCreated.some((f) => f.includes('server.ts'))).toBe(true);
+    // Check backend was created in backend/ subdirectory
+    expect(result.filesCreated.some((f) => f.startsWith('backend/'))).toBe(true);
+    expect(result.filesCreated.some((f) => f.includes('index.ts'))).toBe(true);
 
-    // Verify directories exist
-    const frontendExists = await fs.access(path.join(testDir, 'my-fullstack-frontend')).then(() => true).catch(() => false);
-    const backendExists = await fs.access(path.join(testDir, 'my-fullstack-backend')).then(() => true).catch(() => false);
+    // Check root README was created
+    expect(result.filesCreated.some((f) => f === 'README.md')).toBe(true);
+
+    // Verify directories exist (project/frontend and project/backend structure)
+    const frontendExists = await fs.access(path.join(testDir, 'my-fullstack', 'frontend')).then(() => true).catch(() => false);
+    const backendExists = await fs.access(path.join(testDir, 'my-fullstack', 'backend')).then(() => true).catch(() => false);
+    const readmeExists = await fs.access(path.join(testDir, 'my-fullstack', 'README.md')).then(() => true).catch(() => false);
 
     expect(frontendExists).toBe(true);
     expect(backendExists).toBe(true);
+    expect(readmeExists).toBe(true);
   });
 });

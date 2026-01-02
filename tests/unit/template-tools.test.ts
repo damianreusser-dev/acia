@@ -90,19 +90,23 @@ describe('Template Tools', () => {
 
       expect(result.success).toBe(true);
       expect(result.output).toContain('fullstack');
-      expect(result.output).toContain('my-fullstack-frontend');
-      expect(result.output).toContain('my-fullstack-backend');
+      expect(result.output).toContain('my-fullstack/frontend');
+      expect(result.output).toContain('my-fullstack/backend');
 
-      // Verify both projects were created
+      // Verify both projects were created in subdirectories
       const frontendExists = await fs.access(
-        path.join(testDir, 'my-fullstack-frontend', 'package.json')
+        path.join(testDir, 'my-fullstack', 'frontend', 'package.json')
       ).then(() => true).catch(() => false);
       const backendExists = await fs.access(
-        path.join(testDir, 'my-fullstack-backend', 'package.json')
+        path.join(testDir, 'my-fullstack', 'backend', 'package.json')
+      ).then(() => true).catch(() => false);
+      const readmeExists = await fs.access(
+        path.join(testDir, 'my-fullstack', 'README.md')
       ).then(() => true).catch(() => false);
 
       expect(frontendExists).toBe(true);
       expect(backendExists).toBe(true);
+      expect(readmeExists).toBe(true);
     });
 
     it('should fail for unknown template', async () => {

@@ -125,42 +125,137 @@ export class TemplateService {
 
 /**
  * Create a fullstack project with both React frontend and Express backend
+ * Creates a single project directory with frontend/ and backend/ subdirectories
  */
 export async function createFullstackProject(
   outputDir: string,
   options: TemplateOptions
 ): Promise<TemplateResult> {
-  const service = new TemplateService(outputDir);
   const filesCreated: string[] = [];
+  const projectDir = path.join(outputDir, options.projectName);
 
-  // Create frontend
-  const frontendOptions: TemplateOptions = {
-    ...options,
-    projectName: `${options.projectName}-frontend`,
-    description: `${options.description ?? options.projectName} - Frontend`,
-  };
+  try {
+    // Create project root directory
+    await fs.mkdir(projectDir, { recursive: true });
 
-  const frontendResult = await service.generate('react', frontendOptions);
-  if (!frontendResult.success) {
-    return frontendResult;
+    // Generate React template
+    const reactGenerator = templateGenerators['react'];
+    if (!reactGenerator) {
+      return { success: false, filesCreated: [], error: 'React template not found' };
+    }
+    const reactTemplate = reactGenerator({
+      ...options,
+      projectName: options.projectName,
+      description: `${options.description ?? options.projectName} - Frontend`,
+    });
+
+    // Write frontend files to frontend/ subdirectory
+    const frontendDir = path.join(projectDir, 'frontend');
+    await fs.mkdir(frontendDir, { recursive: true });
+
+    for (const file of reactTemplate.files) {
+      const filePath = path.join(frontendDir, file.path);
+      const fileDir = path.dirname(filePath);
+      await fs.mkdir(fileDir, { recursive: true });
+      await fs.writeFile(filePath, file.content, 'utf-8');
+      filesCreated.push(`frontend/${file.path}`);
+    }
+
+    // Generate Express template
+    const expressGenerator = templateGenerators['express'];
+    if (!expressGenerator) {
+      return { success: false, filesCreated: [], error: 'Express template not found' };
+    }
+    const expressTemplate = expressGenerator({
+      ...options,
+      projectName: options.projectName,
+      description: `${options.description ?? options.projectName} - Backend API`,
+    });
+
+    // Write backend files to backend/ subdirectory
+    const backendDir = path.join(projectDir, 'backend');
+    await fs.mkdir(backendDir, { recursive: true });
+
+    for (const file of expressTemplate.files) {
+      const filePath = path.join(backendDir, file.path);
+      const fileDir = path.dirname(filePath);
+      await fs.mkdir(fileDir, { recursive: true });
+      await fs.writeFile(filePath, file.content, 'utf-8');
+      filesCreated.push(`backend/${file.path}`);
+    }
+
+    // Create root README.md
+    const readmeContent = `# ${options.projectName}
+
+${options.description ?? 'A fullstack application with React frontend and Express backend'}
+
+## Project Structure
+
+\`\`\`
+${options.projectName}/
+├── frontend/     # React + TypeScript frontend
+├── backend/      # Express + TypeScript API
+└── README.md
+\`\`\`
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- npm
+
+### Installation
+
+1. Install frontend dependencies:
+   \`\`\`bash
+   cd frontend
+   npm install
+   \`\`\`
+
+2. Install backend dependencies:
+   \`\`\`bash
+   cd backend
+   npm install
+   \`\`\`
+
+### Development
+
+1. Start the backend server:
+   \`\`\`bash
+   cd backend
+   npm run dev
+   \`\`\`
+
+2. In another terminal, start the frontend:
+   \`\`\`bash
+   cd frontend
+   npm run dev
+   \`\`\`
+
+### API Endpoints
+
+The backend runs on \`http://localhost:3001\` by default.
+
+- \`GET /api/health\` - Health check endpoint
+
+### Frontend
+
+The frontend runs on \`http://localhost:3000\` by default.
+`;
+
+    await fs.writeFile(path.join(projectDir, 'README.md'), readmeContent, 'utf-8');
+    filesCreated.push('README.md');
+
+    return {
+      success: true,
+      filesCreated,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      filesCreated: [],
+      error: error instanceof Error ? error.message : 'Unknown error during generation',
+    };
   }
-  filesCreated.push(...frontendResult.filesCreated.map((f) => `${frontendOptions.projectName}/${f}`));
-
-  // Create backend
-  const backendOptions: TemplateOptions = {
-    ...options,
-    projectName: `${options.projectName}-backend`,
-    description: `${options.description ?? options.projectName} - Backend API`,
-  };
-
-  const backendResult = await service.generate('express', backendOptions);
-  if (!backendResult.success) {
-    return backendResult;
-  }
-  filesCreated.push(...backendResult.filesCreated.map((f) => `${backendOptions.projectName}/${f}`));
-
-  return {
-    success: true,
-    filesCreated,
-  };
 }

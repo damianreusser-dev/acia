@@ -32,9 +32,9 @@ export function createExpressTemplate(options: TemplateOptions): ProjectTemplate
       '@types/supertest': '^2.0.0',
     },
     scripts: {
-      'dev': 'tsx watch src/server.ts',
+      'dev': 'tsx watch src/index.ts',
       'build': 'tsc',
-      'start': 'node dist/server.js',
+      'start': 'node dist/index.js',
       'test': 'vitest run',
       'test:watch': 'vitest',
       'typecheck': 'tsc --noEmit',
@@ -48,9 +48,9 @@ export function createExpressTemplate(options: TemplateOptions): ProjectTemplate
           private: true,
           type: 'module',
           scripts: {
-            dev: 'tsx watch src/server.ts',
+            dev: 'tsx watch src/index.ts',
             build: 'tsc',
-            start: 'node dist/server.js',
+            start: 'node dist/index.js',
             test: 'vitest run',
             'test:watch': 'vitest',
             typecheck: 'tsc --noEmit',
@@ -114,18 +114,32 @@ export default defineConfig({
         description: 'Vitest configuration',
       },
       {
-        path: 'src/server.ts',
-        content: `import { createApp } from './app.js';
+        path: 'src/index.ts',
+        content: `/**
+ * Main entry point for the Express server
+ */
+import { createApp } from './app.js';
 
-const PORT = process.env.PORT ?? 3000;
+const PORT = process.env.PORT ?? 3001;
 
 const app = createApp();
 
 app.listen(PORT, () => {
-  console.log(\`Server running on port \${PORT}\`);
+  console.log(\`Server running on http://localhost:\${PORT}\`);
 });
+
+export { app };
 `,
         description: 'Server entry point',
+      },
+      {
+        path: 'src/server.ts',
+        content: `/**
+ * @deprecated Use index.ts instead. This file is kept for backwards compatibility.
+ */
+export * from './index.js';
+`,
+        description: 'Legacy server entry point (redirects to index.ts)',
       },
       {
         path: 'src/app.ts',
