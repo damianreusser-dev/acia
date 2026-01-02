@@ -157,7 +157,7 @@ User/Human
 - **Agent Memory**: Short-term context, long-term summaries
 - **Channels**: Message history for async communication
 
-## Current Phase: 3 - Company Structure ✅ COMPLETE
+## Current Phase: 5 - Fullstack Capability (IN PROGRESS)
 
 ### Completed Phases
 
@@ -182,13 +182,27 @@ User/Human
 - Jarvis agent as universal entry point
 - Communication channels with pub/sub messaging
 - CLI upgraded to use Jarvis
-- 266 tests passing (+ 7 E2E when API key set)
 
-### Next Phase: 4 - Production Hardening
-- Security hardening (shell injection, input validation)
-- Performance optimization (reduce LLM calls)
-- Monitoring and observability
-- Multi-user support
+**Phase 4 - Production Hardening** ✅
+- Security hardening (shell injection, path traversal prevention)
+- Memory bounds (conversation history, channel messages)
+- LLM response caching (LRUCache with TTL)
+- Structured logging (JSON format, correlation IDs)
+- Performance metrics collector
+
+**Phase 5 - Fullstack Capability** (IN PROGRESS)
+- ArchitectAgent for system design
+- GitTools for version control
+- Specialized agents (FrontendDevAgent, BackendDevAgent)
+- Project templates (React, Express, Fullstack)
+- Template tools for agent scaffolding
+- Multi-team coordination in CEO
+- 492 tests passing (+8 E2E when API key set)
+
+### Next Milestone: Benchmark Test
+- Todo app benchmark (`tests/e2e/benchmarks/fullstack-capability.test.ts`)
+- Jarvis creates complete fullstack app from single prompt
+- All generated code compiles and tests pass
 
 ## Key Decisions Log
 
@@ -424,7 +438,7 @@ const mockLLMClient = { chat: vi.fn() };
 const service = new Service({ llmClient: mockLLMClient });
 ```
 
-## Learned Patterns (from Phase 1-3)
+## Learned Patterns (from Phase 1-5)
 
 ### Testing Patterns
 
@@ -546,6 +560,7 @@ return await this.delegateToCompany(request);
 - Unit tests: `tests/unit/{component}.test.ts`
 - Integration: `tests/integration/{workflow}.test.ts`
 - E2E: `tests/e2e/{feature}-e2e.test.ts`
+- Benchmarks: `tests/e2e/benchmarks/{capability}.test.ts`
 
 **Source organization:**
 ```
@@ -553,6 +568,103 @@ src/agents/{type}/          # Agent implementations
 src/agents/{type}/index.ts  # Re-exports
 src/core/{system}/          # Core systems (tasks, llm, tools)
 src/team/                   # Team coordination
+src/templates/              # Project scaffolding templates
+```
+
+### Template & Scaffolding Patterns (Phase 5)
+
+**Template structure must match external expectations:**
+```typescript
+// BAD - creates sibling directories (non-standard)
+// Creates: project-frontend/, project-backend/
+
+// GOOD - creates subdirectories (industry standard)
+// Creates: project/frontend/, project/backend/
+await createFullstackProject(outputDir, {
+  projectName: 'todo-app',
+});
+// Result: todo-app/frontend/, todo-app/backend/, todo-app/README.md
+```
+
+**Agents need to know about available tools in their system prompt:**
+```typescript
+// BAD - agent has template tools but doesn't know about them
+const DEV_PROMPT = `You are a developer...
+Available tools: read_file, write_file, run_code`;
+
+// GOOD - system prompt mentions all relevant tools
+const DEV_PROMPT = `You are a developer...
+Available tools:
+- read_file, write_file, run_code
+- generate_project (scaffold from templates: react, express, fullstack)
+- list_templates, preview_template`;
+```
+
+**Tool parameter format must be arrays, not objects:**
+```typescript
+// BAD - TypeScript error: parameters as object
+definition: ToolDefinition = {
+  name: 'my_tool',
+  parameters: {
+    param1: { type: 'string', required: true }  // WRONG!
+  }
+};
+
+// GOOD - parameters as array of ToolParameter
+definition: ToolDefinition = {
+  name: 'my_tool',
+  parameters: [
+    { name: 'param1', type: 'string', required: true, description: '...' }
+  ]
+};
+```
+
+**Entry point naming matters for benchmarks:**
+```typescript
+// Express template should use src/index.ts (industry standard)
+// Not src/server.ts (non-standard)
+// Keep legacy file for backwards compatibility:
+// src/server.ts -> re-exports from index.ts
+```
+
+### Benchmark Testing Patterns (Phase 5)
+
+**E2E benchmark tests need LONG timeouts:**
+```typescript
+it('should create fullstack app', async () => {
+  // This involves: Jarvis → CEO → Team → Dev → QA
+  // Multiple LLM calls, each 10-60+ seconds
+  // Total can be 5-10 minutes
+}, 600000); // 10 minute timeout
+
+// Simple LLM call still needs reasonable timeout
+it('should handle ambiguous input', async () => {
+  await jarvis.handleRequest('Build me an app');
+}, 60000); // 1 minute, not 5 seconds!
+```
+
+**Benchmark tests verify the entire system:**
+```typescript
+// Benchmark tests are end-to-end integration tests
+// They verify:
+// 1. Request reaches Jarvis
+// 2. Company/CEO created correctly
+// 3. Teams wired up with tools
+// 4. Agents execute tasks
+// 5. Files actually created
+// 6. Code compiles (npm install, tsc)
+// 7. Tests pass (npm test)
+// 8. Server runs (starts on correct port)
+```
+
+**Workspace-based agent initialization for benchmarks:**
+```typescript
+// Agents need workspace to auto-create tools
+const jarvis = new JarvisAgent({
+  workspace: BENCHMARK_WORKSPACE,  // Required for auto-tool creation
+  wikiService: wiki,
+});
+// Tools are auto-created: file tools, exec tools, git tools, template tools
 ```
 
 ## Quick Commands
@@ -566,6 +678,9 @@ npm run typecheck           # Type checking
 npm run test:unit           # Unit tests only
 npm run test:int            # Integration tests only
 RUN_E2E_TESTS=true npm run test:e2e  # E2E with real API
+
+# Run benchmarks (requires API key, takes 5-10 minutes)
+RUN_E2E_TESTS=true npm run test:e2e -- tests/e2e/benchmarks/fullstack-capability.test.ts
 
 # Watch mode for development
 npm run test:watch
