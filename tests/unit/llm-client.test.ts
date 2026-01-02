@@ -23,26 +23,60 @@ vi.mock('@anthropic-ai/sdk', () => {
   };
 });
 
+// Mock the OpenAI SDK
+vi.mock('openai', () => {
+  return {
+    default: vi.fn().mockImplementation(() => ({
+      chat: {
+        completions: {
+          create: vi.fn().mockResolvedValue({
+            choices: [
+              {
+                message: { content: 'Hello from GPT!' },
+                finish_reason: 'stop',
+              },
+            ],
+            usage: {
+              prompt_tokens: 15,
+              completion_tokens: 25,
+            },
+          }),
+        },
+      },
+    })),
+  };
+});
+
 describe('LLMClient', () => {
   describe('constructor', () => {
     it('should throw error if apiKey is not provided', () => {
-      expect(() => new LLMClient({ apiKey: '' })).toThrow('ANTHROPIC_API_KEY is required');
+      expect(() => new LLMClient({ apiKey: '' })).toThrow('API key is required');
     });
 
-    it('should create client with valid apiKey', () => {
+    it('should create client with valid apiKey (default OpenAI)', () => {
       const client = new LLMClient({ apiKey: 'test-key' });
+      expect(client).toBeDefined();
+    });
+
+    it('should create client with anthropic provider', () => {
+      const client = new LLMClient({ provider: 'anthropic', apiKey: 'test-key' });
+      expect(client).toBeDefined();
+    });
+
+    it('should create client with openai provider', () => {
+      const client = new LLMClient({ provider: 'openai', apiKey: 'test-key' });
       expect(client).toBeDefined();
     });
   });
 
-  describe('chat', () => {
+  describe('chat with Anthropic', () => {
     let client: LLMClient;
 
     beforeEach(() => {
-      client = new LLMClient({ apiKey: 'test-key' });
+      client = new LLMClient({ provider: 'anthropic', apiKey: 'test-key' });
     });
 
-    it('should return formatted response from API', async () => {
+    it('should return formatted response from Anthropic API', async () => {
       const response = await client.chat([{ role: 'user', content: 'Hello' }]);
 
       expect(response.content).toBe('Hello from Claude!');
@@ -61,12 +95,55 @@ describe('LLMClient', () => {
     });
   });
 
+  describe('chat with OpenAI', () => {
+    let client: LLMClient;
+
+    beforeEach(() => {
+      client = new LLMClient({ provider: 'openai', apiKey: 'test-key' });
+    });
+
+    it('should return formatted response from OpenAI API', async () => {
+      const response = await client.chat([{ role: 'user', content: 'Hello' }]);
+
+      expect(response.content).toBe('Hello from GPT!');
+      expect(response.stopReason).toBe('stop');
+      expect(response.usage.inputTokens).toBe(15);
+      expect(response.usage.outputTokens).toBe(25);
+    });
+
+    it('should handle system prompt', async () => {
+      const response = await client.chat(
+        [{ role: 'user', content: 'Hello' }],
+        'You are a helpful assistant'
+      );
+
+      expect(response.content).toBe('Hello from GPT!');
+    });
+  });
+
   describe('complete', () => {
-    it('should return just the content string', async () => {
-      const client = new LLMClient({ apiKey: 'test-key' });
+    it('should return just the content string (Anthropic)', async () => {
+      const client = new LLMClient({ provider: 'anthropic', apiKey: 'test-key' });
       const result = await client.complete('Hello');
 
       expect(result).toBe('Hello from Claude!');
+    });
+
+    it('should return just the content string (OpenAI)', async () => {
+      const client = new LLMClient({ provider: 'openai', apiKey: 'test-key' });
+      const result = await client.complete('Hello');
+
+      expect(result).toBe('Hello from GPT!');
+    });
+  });
+
+  describe('default provider', () => {
+    it('should default to OpenAI when no provider specified', async () => {
+      const client = new LLMClient({ apiKey: 'test-key' });
+      const result = await client.complete('Hello');
+
+      // Default is OpenAI, so should get GPT response
+      expect(result).toBe('Hello from GPT!');
     });
   });
 });

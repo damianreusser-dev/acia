@@ -9,7 +9,7 @@ import * as readline from 'readline';
 import * as path from 'path';
 import * as fs from 'fs';
 import { JarvisAgent } from '../agents/executive/jarvis-agent.js';
-import { LLMClient } from '../core/llm/client.js';
+import { LLMClient, LLMProvider } from '../core/llm/client.js';
 import { WikiService } from '../core/wiki/wiki-service.js';
 import { createFileTools } from '../core/tools/file-tools.js';
 import { createExecTools } from '../core/tools/exec-tools.js';
@@ -36,10 +36,18 @@ function loadEnv(): void {
 loadEnv();
 
 async function main(): Promise<void> {
-  const apiKey = process.env['ANTHROPIC_API_KEY'];
+  // Determine LLM provider (default to OpenAI)
+  const provider = (process.env['LLM_PROVIDER'] ?? 'openai') as LLMProvider;
+
+  // Get API key for selected provider
+  const apiKey =
+    provider === 'openai'
+      ? process.env['OPENAI_API_KEY']
+      : process.env['ANTHROPIC_API_KEY'];
 
   if (!apiKey) {
-    console.error('Error: ANTHROPIC_API_KEY not set in .env file');
+    const keyName = provider === 'openai' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY';
+    console.error(`Error: ${keyName} not set in .env file`);
     console.error('Please add your API key to the .env file');
     process.exit(1);
   }
@@ -48,10 +56,14 @@ async function main(): Promise<void> {
   const workspace = process.cwd();
   const wikiRoot = path.join(workspace, '.acia-wiki');
 
+  // Determine model based on provider
+  const model = provider === 'openai' ? 'gpt-5-mini' : 'claude-sonnet-4-20250514';
+
   // Initialize LLM client
   const llmClient = new LLMClient({
+    provider,
     apiKey,
-    model: 'claude-sonnet-4-20250514',
+    model,
     maxTokens: 4096,
   });
 
@@ -89,6 +101,7 @@ async function main(): Promise<void> {
   console.log('═'.repeat(60));
   console.log('  ACIA - Autonomous Company Intelligence Architecture');
   console.log('═'.repeat(60));
+  console.log(`Provider: ${provider} (${model})`);
   console.log(`Workspace: ${workspace}`);
   console.log(`Wiki: ${wikiService ? wikiRoot : 'disabled'}`);
   console.log('');

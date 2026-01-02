@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { DevAgent } from '../../src/agents/dev/dev-agent.js';
 import { PMAgent } from '../../src/agents/pm/pm-agent.js';
-import { LLMClient } from '../../src/core/llm/client.js';
+import { LLMClient, LLMProvider } from '../../src/core/llm/client.js';
 import { createFileTools } from '../../src/core/tools/file-tools.js';
 import { createTemplateTools } from '../../src/core/tools/template-tools.js';
 import { createTask } from '../../src/core/tasks/types.js';
@@ -27,9 +27,15 @@ describeE2E('Scaffold Task Integration', () => {
     // Create temp workspace
     workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'acia-scaffold-test-'));
 
-    // Create LLM client
+    // Create LLM client with provider config
+    const provider = (process.env.LLM_PROVIDER ?? 'openai') as LLMProvider;
+    const apiKey =
+      provider === 'openai'
+        ? process.env.OPENAI_API_KEY
+        : process.env.ANTHROPIC_API_KEY;
     llmClient = new LLMClient({
-      apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+      provider,
+      apiKey: apiKey ?? '',
     });
   });
 

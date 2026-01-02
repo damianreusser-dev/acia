@@ -1,11 +1,12 @@
 /**
- * LLM Client - Wrapper for Anthropic Claude API
+ * LLM Client - Multi-provider LLM abstraction
  *
- * Provides a clean interface for interacting with the Claude API.
+ * Supports both Anthropic Claude and OpenAI APIs.
  * Includes caching, metrics, and structured logging.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { LLMResponseCache, LLMCacheEntry } from '../cache/cache.js';
 import { getMetrics } from '../metrics/metrics.js';
 import { createLogger, getCorrelationId } from '../logging/logger.js';
@@ -27,7 +28,10 @@ export interface LLMResponse {
   cached?: boolean;
 }
 
+export type LLMProvider = 'anthropic' | 'openai';
+
 export interface LLMClientConfig {
+  provider?: LLMProvider;
   apiKey: string;
   model?: string;
   maxTokens?: number;
@@ -37,19 +41,28 @@ export interface LLMClientConfig {
 }
 
 export class LLMClient {
-  private client: Anthropic;
-  private model: string;
-  private maxTokens: number;
-  private cache: LLMResponseCache | null;
+  private readonly provider: LLMProvider;
+  private readonly anthropicClient?: Anthropic;
+  private readonly openaiClient?: OpenAI;
+  private readonly model: string;
+  private readonly maxTokens: number;
+  private readonly cache: LLMResponseCache | null;
 
   constructor(config: LLMClientConfig) {
     if (!config.apiKey) {
-      throw new Error('ANTHROPIC_API_KEY is required');
+      throw new Error('API key is required');
     }
 
-    this.client = new Anthropic({ apiKey: config.apiKey });
-    this.model = config.model ?? 'claude-sonnet-4-20250514';
+    this.provider = config.provider ?? 'openai';
     this.maxTokens = config.maxTokens ?? 4096;
+
+    if (this.provider === 'anthropic') {
+      this.anthropicClient = new Anthropic({ apiKey: config.apiKey });
+      this.model = config.model ?? 'claude-sonnet-4-20250514';
+    } else {
+      this.openaiClient = new OpenAI({ apiKey: config.apiKey });
+      this.model = config.model ?? 'gpt-5-mini';
+    }
 
     // Initialize cache if enabled
     if (config.cacheEnabled ?? false) {
@@ -58,6 +71,8 @@ export class LLMClient {
         maxSize: config.cacheMaxSize,
       });
       logger.info('LLM response cache enabled', {
+        provider: this.provider,
+        model: this.model,
         maxSize: config.cacheMaxSize ?? 1000,
         ttlMs: config.cacheTtlMs ?? 3600000,
       });
@@ -100,36 +115,20 @@ export class LLMClient {
     }
 
     // Make the API request
-    logger.debug('Sending request to Anthropic API', {
+    logger.debug(`Sending request to ${this.provider} API`, {
       correlationId,
+      provider: this.provider,
       model: this.model,
       messageCount: messages.length,
     });
 
     try {
-      const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: this.maxTokens,
-        system: systemPrompt,
-        messages: messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
-      });
+      const result =
+        this.provider === 'anthropic'
+          ? await this.chatAnthropic(messages, systemPrompt)
+          : await this.chatOpenAI(messages, systemPrompt);
 
-      const textContent = response.content.find((c) => c.type === 'text');
-      const content = textContent && 'text' in textContent ? textContent.text : '';
       const latencyMs = Date.now() - startTime;
-
-      const result: LLMResponse = {
-        content,
-        stopReason: response.stop_reason,
-        usage: {
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
-        },
-        cached: false,
-      };
 
       // Record metrics
       metrics.recordLLMRequest({
@@ -139,7 +138,7 @@ export class LLMClient {
         cached: false,
       });
 
-      logger.debug('Received response from Anthropic API', {
+      logger.debug(`Received response from ${this.provider} API`, {
         correlationId,
         inputTokens: result.usage.inputTokens,
         outputTokens: result.usage.outputTokens,
@@ -169,7 +168,7 @@ export class LLMClient {
         cached: false,
       });
 
-      logger.error('Anthropic API request failed', {
+      logger.error(`${this.provider} API request failed`, {
         correlationId,
         latencyMs,
         error: error instanceof Error ? error.message : String(error),
@@ -177,6 +176,81 @@ export class LLMClient {
 
       throw error;
     }
+  }
+
+  /**
+   * Make a chat request to Anthropic Claude API.
+   */
+  private async chatAnthropic(
+    messages: LLMMessage[],
+    systemPrompt?: string
+  ): Promise<LLMResponse> {
+    if (!this.anthropicClient) {
+      throw new Error('Anthropic client not initialized');
+    }
+
+    const response = await this.anthropicClient.messages.create({
+      model: this.model,
+      max_tokens: this.maxTokens,
+      system: systemPrompt,
+      messages: messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      })),
+    });
+
+    const textContent = response.content.find(
+      (c): c is Anthropic.TextBlock => c.type === 'text'
+    );
+    const content = textContent?.text ?? '';
+
+    return {
+      content,
+      stopReason: response.stop_reason,
+      usage: {
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      },
+      cached: false,
+    };
+  }
+
+  /**
+   * Make a chat request to OpenAI API.
+   */
+  private async chatOpenAI(
+    messages: LLMMessage[],
+    systemPrompt?: string
+  ): Promise<LLMResponse> {
+    if (!this.openaiClient) {
+      throw new Error('OpenAI client not initialized');
+    }
+
+    const openaiMessages: OpenAI.ChatCompletionMessageParam[] = [];
+
+    if (systemPrompt) {
+      openaiMessages.push({ role: 'system', content: systemPrompt });
+    }
+
+    for (const m of messages) {
+      openaiMessages.push({ role: m.role, content: m.content });
+    }
+
+    const response = await this.openaiClient.chat.completions.create({
+      model: this.model,
+      max_completion_tokens: this.maxTokens,
+      messages: openaiMessages,
+    });
+
+    return {
+      content: response.choices[0]?.message?.content ?? '',
+      stopReason: response.choices[0]?.finish_reason ?? null,
+      usage: {
+        inputTokens: response.usage?.prompt_tokens ?? 0,
+        outputTokens: response.usage?.completion_tokens ?? 0,
+      },
+      cached: false,
+    };
   }
 
   async complete(prompt: string, systemPrompt?: string): Promise<string> {

@@ -8,7 +8,7 @@
 
 import { Agent, AgentConfig } from '../base/agent.js';
 import { Tool } from '../../core/tools/types.js';
-import { LLMClient } from '../../core/llm/client.js';
+import { LLMClient, LLMProvider } from '../../core/llm/client.js';
 import { CEOAgent, CEOResult } from './ceo-agent.js';
 import { WikiService } from '../../core/wiki/wiki-service.js';
 import { createFileTools } from '../../core/tools/file-tools.js';
@@ -30,8 +30,21 @@ Your responsibilities:
 When receiving a request:
 1. Determine if it fits an existing company's domain
 2. If yes, delegate to that company's CEO
-3. If no, consider creating a new company or asking for clarification
+3. If no, CREATE A NEW COMPANY for any coding/building tasks
 4. Track all delegated work
+
+IMPORTANT: For any task that involves:
+- Creating applications or projects
+- Writing code or implementing features
+- Building fullstack, frontend, or backend systems
+- Creating files with specific content
+
+You MUST create a company and delegate. This ensures proper:
+- Project planning (by PM agent)
+- Implementation (by Dev agent)
+- Quality assurance (by QA agent)
+
+Only respond directly for simple questions or greetings.
 
 When handling escalations:
 1. Understand why the CEO couldn't resolve it
@@ -104,8 +117,14 @@ export class JarvisAgent extends Agent {
     const workspace = config.workspace ?? process.cwd();
 
     // Create LLM client if not provided
+    const provider = (process.env.LLM_PROVIDER ?? 'openai') as LLMProvider;
+    const apiKey =
+      provider === 'openai'
+        ? process.env.OPENAI_API_KEY
+        : process.env.ANTHROPIC_API_KEY;
     const llmClient = config.llmClient ?? new LLMClient({
-      apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+      provider,
+      apiKey: apiKey ?? '',
     });
 
     // Create tools if not provided (workspace mode)
@@ -237,9 +256,23 @@ ${companiesContext}
 Analyze this request and determine the best action:
 
 1. DELEGATE - If the request fits an existing company's domain
-2. CREATE_COMPANY - If we need a new company for this domain
+2. CREATE_COMPANY - If the request involves building an application, creating a project, or any substantial coding work
 3. STATUS - If the user is asking about status/progress
-4. DIRECT_RESPONSE - If you can answer directly without delegation
+4. DIRECT_RESPONSE - ONLY for simple questions or greetings (NOT for coding tasks)
+
+IMPORTANT: For any task that involves creating files, building applications, or implementing features:
+- Use CREATE_COMPANY to set up proper team structure (PM, Dev, QA)
+- This ensures proper planning, implementation, and quality assurance
+
+Examples requiring CREATE_COMPANY:
+- "Create a todo application" → CREATE_COMPANY
+- "Build a fullstack app" → CREATE_COMPANY
+- "Implement a REST API" → CREATE_COMPANY
+- "Create a greeting.txt file" → CREATE_COMPANY
+
+Examples for DIRECT_RESPONSE:
+- "Hello" or "Hi" → DIRECT_RESPONSE
+- "What is TypeScript?" → DIRECT_RESPONSE (informational only)
 
 Respond with:
 ACTION: [delegate/create_company/status/direct_response]

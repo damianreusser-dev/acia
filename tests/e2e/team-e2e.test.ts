@@ -13,7 +13,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import { Team } from '../../src/team/team.js';
-import { LLMClient } from '../../src/core/llm/client.js';
+import { LLMClient, LLMProvider } from '../../src/core/llm/client.js';
 import { DevAgent } from '../../src/agents/dev/dev-agent.js';
 import { createFileTools } from '../../src/core/tools/file-tools.js';
 import { createTask } from '../../src/core/tasks/types.js';
@@ -28,12 +28,22 @@ describeE2E('Single Agent E2E (Real LLM)', () => {
   let llmClient: LLMClient;
 
   beforeAll(() => {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      throw new Error('ANTHROPIC_API_KEY not set. Check your .env file.');
+    const provider = (process.env.LLM_PROVIDER ?? 'openai') as LLMProvider;
+    const apiKey =
+      provider === 'openai'
+        ? process.env.OPENAI_API_KEY
+        : process.env.ANTHROPIC_API_KEY;
+
+    if (!apiKey) {
+      const keyName = provider === 'openai' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY';
+      throw new Error(`${keyName} not set. Check your .env file.`);
     }
+
+    const model = provider === 'openai' ? 'gpt-5-mini' : 'claude-sonnet-4-20250514';
     llmClient = new LLMClient({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-      model: 'claude-sonnet-4-20250514',
+      provider,
+      apiKey,
+      model,
       maxTokens: 2048,
     });
   });
@@ -103,12 +113,22 @@ describeE2E('Team E2E Tests (Real LLM)', () => {
   let progressMessages: string[];
 
   beforeAll(() => {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      throw new Error('ANTHROPIC_API_KEY not set. Check your .env file.');
+    const provider = (process.env.LLM_PROVIDER ?? 'openai') as LLMProvider;
+    const apiKey =
+      provider === 'openai'
+        ? process.env.OPENAI_API_KEY
+        : process.env.ANTHROPIC_API_KEY;
+
+    if (!apiKey) {
+      const keyName = provider === 'openai' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY';
+      throw new Error(`${keyName} not set. Check your .env file.`);
     }
+
+    const model = provider === 'openai' ? 'gpt-5-mini' : 'claude-sonnet-4-20250514';
     llmClient = new LLMClient({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-      model: 'claude-sonnet-4-20250514',
+      provider,
+      apiKey,
+      model,
       maxTokens: 2048,
     });
   });
@@ -199,12 +219,22 @@ describeE2E('Design-First E2E Tests (Real LLM)', () => {
   let progressMessages: string[];
 
   beforeAll(() => {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      throw new Error('ANTHROPIC_API_KEY not set. Check your .env file.');
+    const provider = (process.env.LLM_PROVIDER ?? 'openai') as LLMProvider;
+    const apiKey =
+      provider === 'openai'
+        ? process.env.OPENAI_API_KEY
+        : process.env.ANTHROPIC_API_KEY;
+
+    if (!apiKey) {
+      const keyName = provider === 'openai' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY';
+      throw new Error(`${keyName} not set. Check your .env file.`);
     }
+
+    const model = provider === 'openai' ? 'gpt-5-mini' : 'claude-sonnet-4-20250514';
     llmClient = new LLMClient({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-      model: 'claude-sonnet-4-20250514',
+      provider,
+      apiKey,
+      model,
       maxTokens: 2048,
     });
   });
@@ -302,10 +332,15 @@ describeE2E('Design-First E2E Tests (Real LLM)', () => {
 // Simple sanity check that always runs
 describe('E2E Test Setup', () => {
   it('should detect E2E test environment correctly', () => {
-    const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
+    const provider = process.env.LLM_PROVIDER ?? 'openai';
+    const hasApiKey =
+      provider === 'openai'
+        ? !!process.env.OPENAI_API_KEY
+        : !!process.env.ANTHROPIC_API_KEY;
     const runE2E = process.env.RUN_E2E_TESTS === 'true';
 
-    console.log(`ANTHROPIC_API_KEY set: ${hasApiKey}`);
+    console.log(`LLM Provider: ${provider}`);
+    console.log(`API key set: ${hasApiKey}`);
     console.log(`RUN_E2E_TESTS: ${runE2E}`);
     console.log(`E2E tests will run: ${hasApiKey && runE2E}`);
 
