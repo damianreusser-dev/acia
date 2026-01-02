@@ -157,7 +157,7 @@ User/Human
 - **Agent Memory**: Short-term context, long-term summaries
 - **Channels**: Message history for async communication
 
-## Current Phase: 3 - Company Structure
+## Current Phase: 3 - Company Structure ✅ COMPLETE
 
 ### Completed Phases
 
@@ -174,14 +174,21 @@ User/Human
 - Team class coordinating PM → Dev → QA workflow
 - Dev → QA → Fix iteration loop with maxIterations
 - E2E tests validating real LLM integration
-- 122 unit/integration tests + 2 E2E tests
 
-### Phase 3 Goal
-Full company hierarchy with persistent knowledge:
-- [ ] Wiki/Memory system for agent knowledge
-- [ ] CEO agent for higher-level orchestration
-- [ ] Jarvis agent as universal entry point
-- [ ] Communication channels between agents
+**Phase 3 - Enhanced Capabilities** ✅
+- Wiki/Memory system for agent knowledge (CRUD + search)
+- Design-First development workflow
+- CEO agent for higher-level orchestration
+- Jarvis agent as universal entry point
+- Communication channels with pub/sub messaging
+- CLI upgraded to use Jarvis
+- 266 tests passing (+ 7 E2E when API key set)
+
+### Next Phase: 4 - Production Hardening
+- Security hardening (shell injection, input validation)
+- Performance optimization (reduce LLM calls)
+- Monitoring and observability
+- Multi-user support
 
 ## Key Decisions Log
 
@@ -194,6 +201,10 @@ Full company hierarchy with persistent knowledge:
 | 2026-01-02 | PM read-only tools | PM plans, Dev/QA execute |
 | 2026-01-02 | maxIterations default 3 | Prevent infinite loops, allow fixes |
 | 2026-01-02 | E2E tests skip by default | Require `RUN_E2E_TESTS=true` to avoid API costs |
+| 2026-01-02 | Design-First workflow | PM creates design doc before planning tasks |
+| 2026-01-02 | Jarvis as universal entry | Single point of contact for all user interactions |
+| 2026-01-02 | Pub/Sub channels | Flexible agent communication without tight coupling |
+| 2026-01-02 | Smart task routing | Jarvis handles simple tasks directly, delegates complex ones |
 
 ## Notes for Claude
 
@@ -219,7 +230,201 @@ Full company hierarchy with persistent knowledge:
 2. Check if it's a scope issue (maybe defer to later phase)
 3. Ask human for input if architectural decision needed
 
-## Learned Patterns (from Phase 1-2)
+## Code Quality Standards (MUST FOLLOW)
+
+These standards prevent "vibe coding" - code that looks right but has subtle bugs.
+
+### Security (CRITICAL)
+
+**Never use shell: true with user input:**
+```typescript
+// BAD - shell injection vulnerability
+spawn('npm', ['run', userInput], { shell: true });
+
+// GOOD - use array args, avoid shell
+spawn('npm', ['run', sanitizedScript], { shell: false });
+spawn('npm', ['run', script]); // shell: false is default
+```
+
+**Always validate inputs at boundaries:**
+```typescript
+// BAD - trust user input
+const script = args.script;
+execCommand(script);
+
+// GOOD - validate against allowlist
+const ALLOWED_SCRIPTS = ['test', 'build', 'lint'] as const;
+if (!ALLOWED_SCRIPTS.includes(script)) {
+  throw new Error(`Invalid script: ${script}`);
+}
+```
+
+### Type Safety (REQUIRED)
+
+**Validate regex match groups before use:**
+```typescript
+// BAD - match[1] can be undefined, crashes at runtime
+const match = text.match(/pattern: (\w+)/);
+const value = match[1]; // TypeScript allows, runtime explodes
+
+// GOOD - explicit null checks
+const match = text.match(/pattern: (\w+)/);
+if (match && match[1]) {
+  const value = match[1];
+}
+```
+
+**Validate before type assertions:**
+```typescript
+// BAD - blindly trust cast
+const config = data as Config;
+
+// GOOD - validate shape first
+if (isValidConfig(data)) {
+  const config = data;
+}
+
+// Or use runtime validation library (zod, etc.)
+```
+
+**No implicit any in callbacks:**
+```typescript
+// BAD - arr is any[]
+array.map(item => item.value);
+
+// GOOD - explicit types
+array.map((item: MyType) => item.value);
+```
+
+### Memory Management (IMPORTANT)
+
+**Bound all growing collections:**
+```typescript
+// BAD - grows forever, memory leak
+private history: Message[] = [];
+addMessage(msg: Message) {
+  this.history.push(msg);
+}
+
+// GOOD - cap size, rotate old entries
+private readonly MAX_HISTORY = 1000;
+addMessage(msg: Message) {
+  this.history.push(msg);
+  if (this.history.length > this.MAX_HISTORY) {
+    this.history.shift();
+  }
+}
+```
+
+**Clear references when done:**
+```typescript
+// In long-running processes, clean up
+destroy() {
+  this.handlers.clear();
+  this.subscriptions.clear();
+}
+```
+
+### Code Organization (BEST PRACTICE)
+
+**Extract magic numbers as constants:**
+```typescript
+// BAD - magic numbers scattered
+if (attempts > 3) { ... }
+setTimeout(fn, 30000);
+
+// GOOD - named constants at top
+const MAX_RETRY_ATTEMPTS = 3;
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+if (attempts > MAX_RETRY_ATTEMPTS) { ... }
+setTimeout(fn, DEFAULT_TIMEOUT_MS);
+```
+
+**Keep methods under 50 lines:**
+```typescript
+// BAD - 150 line method doing everything
+async processTask(task: Task) {
+  // ... 150 lines of nested logic
+}
+
+// GOOD - decomposed into focused methods
+async processTask(task: Task) {
+  const plan = await this.createPlan(task);
+  const result = await this.executePlan(plan);
+  return this.formatResult(result);
+}
+```
+
+**Don't suppress linter warnings without reason:**
+```typescript
+// BAD - hide problems
+// eslint-disable-next-line
+const x = something;
+
+// GOOD - if truly needed, explain why
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for API compatibility
+const _legacyParam = param;
+```
+
+### Error Handling (REQUIRED)
+
+**Never swallow errors silently:**
+```typescript
+// BAD - error disappears
+try {
+  await riskyOperation();
+} catch {
+  // nothing
+}
+
+// GOOD - at minimum, log it
+try {
+  await riskyOperation();
+} catch (error) {
+  console.error('Operation failed:', error);
+  // re-throw, return error result, or handle gracefully
+}
+```
+
+**Use specific error types:**
+```typescript
+// BAD - generic error, hard to handle
+throw new Error('Failed');
+
+// GOOD - typed errors for different cases
+class ValidationError extends Error {
+  constructor(public field: string, message: string) {
+    super(message);
+  }
+}
+throw new ValidationError('email', 'Invalid email format');
+```
+
+### Testing Standards (REQUIRED)
+
+**Test the edge cases, not just happy path:**
+```typescript
+describe('parseInput', () => {
+  it('parses valid input', () => { ... });           // Happy path
+  it('handles empty input', () => { ... });          // Edge case
+  it('handles null/undefined', () => { ... });       // Edge case
+  it('rejects invalid format', () => { ... });       // Error case
+  it('handles unicode characters', () => { ... });   // Edge case
+});
+```
+
+**Mock at boundaries, not internals:**
+```typescript
+// BAD - mocking internal methods, brittle tests
+vi.spyOn(service, 'privateHelper').mockReturnValue(...);
+
+// GOOD - mock external boundaries (LLM, file system, network)
+const mockLLMClient = { chat: vi.fn() };
+const service = new Service({ llmClient: mockLLMClient });
+```
+
+## Learned Patterns (from Phase 1-3)
 
 ### Testing Patterns
 
@@ -238,7 +443,19 @@ mockLLMClient.chat = vi.fn().mockImplementation(() => {
 ```typescript
 it('should complete workflow', async () => {
   // Real LLM calls take 20-160 seconds
-}, { timeout: 180000 });
+  // Full agent flows can take 5+ minutes (many LLM calls)
+}, { timeout: 300000 }); // 5 minutes for complex flows
+```
+
+**Test smart agent behavior:**
+```typescript
+// Agents may handle tasks directly without full hierarchy
+// This is GOOD - simple tasks don't need full company structure
+it('handles simple task directly', async () => {
+  const result = await jarvis.processRequest('Create hello.txt');
+  expect(result.success).toBe(true);
+  // Don't assert newCompanyCreated - Jarvis may be smart enough to do it directly
+});
 ```
 
 ### Code Patterns
@@ -269,6 +486,20 @@ maxIterations: 3,
 maxRetries: 2,
 ```
 
+**Avoid private property name conflicts in inheritance:**
+```typescript
+// BAD - base class has private llmClient
+class ChildAgent extends Agent {
+  private llmClient: LLMClient; // Conflict!
+}
+
+// GOOD - use unique names if you need local reference
+class ChildAgent extends Agent {
+  private childLLMClient: LLMClient;
+  // Or just use the inherited one via this.llmClient
+}
+```
+
 ### LLM Integration Patterns
 
 **Parse tool calls flexibly:**
@@ -280,6 +511,34 @@ maxRetries: 2,
 - Provide clear structure in system prompt
 - Request specific output format
 - Parse with regex, not JSON (more flexible)
+
+### Agent Workflow Patterns
+
+**Design-First Development:**
+```typescript
+// PM creates design doc BEFORE planning tasks
+async planTask(task: Task): Promise<TaskBreakdown> {
+  const designDoc = await this.createDesignDoc(task);
+  const breakdown = await this.createTaskBreakdown(task, designDoc);
+  return breakdown;
+}
+```
+
+**Escalation chain:**
+```
+Dev/QA fails → PM retries → CEO handles → Jarvis escalates → Human
+```
+
+**Smart task routing:**
+```typescript
+// Not everything needs full hierarchy
+// Jarvis can handle simple requests directly
+if (this.isSimpleRequest(request)) {
+  return await this.handleDirectly(request);
+}
+// Complex requests go to companies/CEOs
+return await this.delegateToCompany(request);
+```
 
 ### File Organization
 
