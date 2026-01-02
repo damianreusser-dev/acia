@@ -33,10 +33,15 @@ Available tools allow you to:
 - Run code to test your implementation
 - Generate project scaffolds using templates (list_templates, generate_project, preview_template)
 
-For new projects:
-- Use list_templates to see available templates (react, express, fullstack)
-- Use generate_project to scaffold a project with proper structure
-- The fullstack template creates frontend/ and backend/ subdirectories
+CRITICAL - For new project creation tasks:
+- ALWAYS use generate_project tool FIRST before writing any code
+- For fullstack apps: generate_project with template="fullstack", projectName="<name>"
+- For React apps: generate_project with template="react", projectName="<name>"
+- For Express/API: generate_project with template="express", projectName="<name>"
+- The fullstack template creates frontend/ and backend/ subdirectories with all configs
+- After scaffolding, customize the generated files for the specific requirements
+
+If a task mentions "scaffold", "generate project", or "create project structure", call generate_project immediately.
 
 Always respond with a clear summary of what you did or why you couldn't complete the task.`;
 
@@ -101,10 +106,43 @@ export class DevAgent extends Agent {
     }
 
     prompt += `**Workspace**: ${this.workspace}\n\n`;
+
+    // Check if this is a scaffold task
+    const isScaffoldTask = this.isScaffoldTask(task);
+    if (isScaffoldTask) {
+      prompt += `**CRITICAL INSTRUCTION**: This is a project scaffolding task.\n`;
+      prompt += `You MUST use the generate_project tool as your FIRST action.\n`;
+      prompt += `Example tool call:\n`;
+      prompt += `<tool_call>\n`;
+      prompt += `{"tool": "generate_project", "params": {"template": "fullstack", "projectName": "todo-app"}}\n`;
+      prompt += `</tool_call>\n\n`;
+      prompt += `Do NOT manually write package.json, tsconfig.json, or other config files.\n`;
+      prompt += `The template will create frontend/ and backend/ directories with all necessary files.\n\n`;
+    }
+
     prompt += `Please implement this task. Use the available tools to read existing code, `;
     prompt += `write new code, and verify your implementation.`;
 
     return prompt;
+  }
+
+  /**
+   * Check if a task is for scaffolding a new project
+   */
+  private isScaffoldTask(task: Task): boolean {
+    const text = `${task.title} ${task.description}`.toLowerCase();
+    const scaffoldKeywords = [
+      'scaffold', 'generate_project', 'template=',
+      'create project structure', 'fullstack',
+      'do not write files manually',
+    ];
+
+    for (const keyword of scaffoldKeywords) {
+      if (text.includes(keyword)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

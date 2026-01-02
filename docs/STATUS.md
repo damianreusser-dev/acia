@@ -203,11 +203,25 @@
 - [x] BackendDevAgent system prompt mentions template tools
 - [x] Agents now know how to use generate_project for scaffolding
 
+#### Phase 5h - Scaffold Task Detection (COMPLETED)
+- [x] PMAgent detects new project creation tasks (isNewProjectTask)
+- [x] PMAgent planning prompt includes scaffold instructions for new projects
+- [x] PMAgent creates scaffold task automatically if LLM parsing fails
+- [x] DevAgent detects scaffold tasks and shows explicit tool call example
+- [x] Integration test verifies scaffold task flow (PM → Dev)
+- [x] **3 new tests (PM new project detection)**
+
 **Success Criteria**:
 - [ ] Benchmark test passes (todo app with React + Express)
 - [ ] All generated code compiles
 - [ ] All generated tests pass
 - [ ] API endpoints work correctly
+
+**Current Status**:
+- Integration tests pass: PM correctly creates scaffold tasks, Dev correctly uses generate_project
+- Full benchmark still failing: Multi-layer orchestration (Jarvis → CEO → Team) needs tuning
+- Token efficiency passing: 12,112 tokens for hello-world server
+- Ambiguous requirements passing: Agent asks for clarification
 
 ### Blocked
 None
@@ -215,6 +229,20 @@ None
 ---
 
 ## Recent Changes
+
+### 2026-01-02 (Phase 5h - Scaffold Task Detection)
+- PMAgent now detects new project creation tasks
+  - Keywords: fullstack, web app, todo app, create a, build a, etc.
+  - Planning prompt includes explicit scaffold instructions
+  - Fallback: Creates scaffold task automatically if LLM parsing fails
+- DevAgent enhanced for scaffold task handling
+  - Detects scaffold keywords in task title/description
+  - Shows explicit tool call example with generate_project
+  - CRITICAL instruction formatting to ensure tool use
+- Integration test added: `tests/integration/scaffold-task.test.ts`
+  - Verifies PM creates scaffold tasks for fullstack requests
+  - Verifies Dev uses generate_project tool correctly
+- **Total: 498 tests (+12 E2E when API key set)**
 
 ### 2026-01-02 (Phase 5f/5g - Template Fixes & Agent Prompts)
 - Fixed fullstack template structure to match benchmark expectations

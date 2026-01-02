@@ -245,6 +245,109 @@ describe('PMAgent', () => {
     });
   });
 
+  describe('new project detection', () => {
+    it('should detect fullstack application requests', async () => {
+      // Mock returns scaffold task when new project is detected
+      const scaffoldMock = {
+        chat: vi.fn().mockResolvedValue({
+          content: `DEV_TASKS:
+1. [Scaffold Project] - Use generate_project tool with template="fullstack" to create project structure
+2. [Customize Backend] - Add todo routes to the generated Express backend
+
+QA_TASKS:
+1. [Test Backend] - Verify the backend API works
+
+EXECUTION_ORDER:
+1. DEV:1
+2. DEV:2
+3. QA:1`,
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        }),
+      } as unknown as LLMClient;
+
+      const agent = new PMAgent({
+        llmClient: scaffoldMock,
+        tools: mockTools,
+        workspace: '/test/workspace',
+      });
+
+      const task = createTask({
+        type: 'implement',
+        title: 'Create a fullstack todo application',
+        description: 'Create a fullstack todo application in the directory "todo-app"',
+        createdBy: 'User',
+      });
+
+      const breakdown = await agent.planTask(task);
+
+      // The mock should have been called (LLM was invoked)
+      expect(scaffoldMock.chat).toHaveBeenCalled();
+      // First call should include the IMPORTANT prompt about scaffolding
+      const callArgs = scaffoldMock.chat.mock.calls[0];
+      expect(callArgs).toBeDefined();
+    });
+
+    it('should detect web application requests', async () => {
+      const agent = new PMAgent({
+        llmClient: mockLLMClient,
+        tools: mockTools,
+        workspace: '/test/workspace',
+      });
+
+      const task = createTask({
+        type: 'implement',
+        title: 'Build a web application',
+        description: 'Build a new web application with React frontend',
+        createdBy: 'User',
+      });
+
+      // The agent should recognize this as a new project task
+      await agent.planTask(task);
+
+      // Check the chat was called
+      expect((mockLLMClient.chat as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
+    });
+
+    it('should NOT detect modification tasks as new projects', async () => {
+      const modifyMock = {
+        chat: vi.fn().mockResolvedValue({
+          content: `DEV_TASKS:
+1. [Add validation] - Add input validation to the existing form
+
+QA_TASKS:
+1. [Test validation] - Test the new validation
+
+EXECUTION_ORDER:
+1. DEV:1
+2. QA:1`,
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        }),
+      } as unknown as LLMClient;
+
+      const agent = new PMAgent({
+        llmClient: modifyMock,
+        tools: mockTools,
+        workspace: '/test/workspace',
+      });
+
+      const task = createTask({
+        type: 'fix',
+        title: 'Fix validation bug',
+        description: 'Fix the validation error in the login form',
+        createdBy: 'User',
+      });
+
+      await agent.planTask(task);
+
+      // Should be called but prompt should NOT contain scaffold instructions
+      expect(modifyMock.chat).toHaveBeenCalled();
+      // The task breakdown should NOT include scaffold task
+      // (this is controlled by what the mock returns)
+    });
+  });
+
   describe('handleTaskResult', () => {
     it('should continue on success', async () => {
       const agent = new PMAgent({

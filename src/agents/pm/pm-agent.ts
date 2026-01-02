@@ -27,6 +27,12 @@ When receiving a task:
 3. Determine the order of execution
 4. Track the status of each subtask
 
+IMPORTANT - Project scaffolding:
+- For new fullstack/web application requests, the FIRST dev task should be to use generate_project tool with template="fullstack"
+- For React-only projects, use template="react"
+- For Express/backend-only projects, use template="express"
+- This creates proper project structure with frontend/ and backend/ subdirectories
+
 When handling failures:
 1. Analyze why the task failed
 2. Decide if it should be retried
@@ -270,10 +276,28 @@ export class PMAgent extends Agent {
     }
 
     prompt += `**Workspace**: ${this.workspace}\n\n`;
+
+    // Detect if this is a new project creation task
+    const isNewProject = this.isNewProjectTask(task);
+    if (isNewProject) {
+      prompt += `**IMPORTANT**: This appears to be a new project creation task.\n`;
+      prompt += `The FIRST dev task MUST use the generate_project tool to scaffold the project structure.\n`;
+      prompt += `- For fullstack apps: generate_project with template="fullstack" and projectName="<name>"\n`;
+      prompt += `- This creates frontend/ and backend/ subdirectories with proper configuration\n\n`;
+    }
+
     prompt += `Please analyze this task and provide a breakdown in the following format:\n\n`;
     prompt += `DEV_TASKS:\n`;
-    prompt += `1. [Title] - [Description]\n`;
-    prompt += `2. [Title] - [Description]\n\n`;
+    if (isNewProject) {
+      // Extract project name from task description
+      const projectNameMatch = task.description.match(/(?:in|directory|folder)\s+["']?([a-zA-Z0-9_-]+)["']?/i);
+      const projectName = projectNameMatch?.[1] ?? 'my-project';
+      prompt += `1. [Scaffold Project] - IMMEDIATELY call generate_project tool with template="fullstack" and projectName="${projectName}". Do NOT write files manually - the template creates everything.\n`;
+      prompt += `2. [Customize for Requirements] - After scaffold, modify generated files to meet specific requirements\n\n`;
+    } else {
+      prompt += `1. [Title] - [Description]\n`;
+      prompt += `2. [Title] - [Description]\n\n`;
+    }
     prompt += `QA_TASKS:\n`;
     prompt += `1. [Title] - [Description]\n\n`;
     prompt += `EXECUTION_ORDER:\n`;
@@ -282,6 +306,38 @@ export class PMAgent extends Agent {
     prompt += `3. DEV:2 (if QA finds issues)\n`;
 
     return prompt;
+  }
+
+  /**
+   * Detect if a task is for creating a new project
+   */
+  private isNewProjectTask(task: Task): boolean {
+    const text = `${task.title} ${task.description}`.toLowerCase();
+
+    // Keywords that indicate new project creation
+    const newProjectKeywords = [
+      'create a', 'build a', 'make a', 'develop a', 'implement a',
+      'new project', 'new application', 'new app',
+      'fullstack', 'full-stack', 'full stack',
+      'todo application', 'todo app',
+      'web application', 'web app',
+    ];
+
+    // Check for project directory references in description
+    const hasDirectoryRef = /in\s+(?:the\s+)?(?:directory|folder)?\s*["']?[\w-]+["']?/i.test(task.description);
+
+    for (const keyword of newProjectKeywords) {
+      if (text.includes(keyword)) {
+        return true;
+      }
+    }
+
+    // Also check if it mentions creating multiple files/components
+    if (hasDirectoryRef && text.includes('application')) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -355,6 +411,48 @@ export class PMAgent extends Agent {
           }
         }
       }
+    }
+
+    // If no dev tasks parsed for a new project task, create scaffold task automatically
+    if (devTasks.length === 0 && this.isNewProjectTask(parentTask)) {
+      const projectNameMatch = parentTask.description.match(/(?:in|directory|folder)\s+["']?([a-zA-Z0-9_-]+)["']?/i);
+      const projectName = projectNameMatch?.[1] ?? 'my-project';
+
+      const scaffoldTask = createTask({
+        type: 'implement',
+        title: 'Scaffold Project',
+        description: `IMMEDIATELY call generate_project tool with template="fullstack" and projectName="${projectName}". Do NOT write files manually - the template creates everything.`,
+        createdBy: this.name,
+        priority: parentTask.priority,
+        parentTaskId: parentTask.id,
+        maxAttempts: this.maxRetries,
+      });
+      devTasks.push(scaffoldTask);
+
+      const customizeTask = createTask({
+        type: 'implement',
+        title: 'Customize for Requirements',
+        description: `After scaffold is complete, modify the generated files in "${projectName}" to meet the specific requirements: ${parentTask.description}`,
+        createdBy: this.name,
+        priority: parentTask.priority,
+        parentTaskId: parentTask.id,
+        maxAttempts: this.maxRetries,
+      });
+      devTasks.push(customizeTask);
+    }
+
+    // If still no dev tasks (non-project task), fall back to single task
+    if (devTasks.length === 0) {
+      const fallbackTask = createTask({
+        type: 'implement',
+        title: parentTask.title,
+        description: parentTask.description,
+        createdBy: this.name,
+        priority: parentTask.priority,
+        parentTaskId: parentTask.id,
+        maxAttempts: this.maxRetries,
+      });
+      devTasks.push(fallbackTask);
     }
 
     // If no order specified, default to: all dev tasks, then all QA tasks
