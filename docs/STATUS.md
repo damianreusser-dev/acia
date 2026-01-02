@@ -190,6 +190,19 @@
 - [x] Template tools auto-included in Jarvis workspace mode
 - [x] **11 new tests (template tools)**
 
+#### Phase 5f - Template Structure Fix (COMPLETED)
+- [x] Fullstack projects create frontend/ and backend/ subdirectories (not sibling dirs)
+- [x] Root README.md generated with project overview
+- [x] Express template entry point changed to src/index.ts (industry standard)
+- [x] Legacy src/server.ts kept for backwards compatibility
+- [x] Benchmark test timeout updated for ambiguous requirements (60s)
+
+#### Phase 5g - Agent Prompt Updates (COMPLETED)
+- [x] DevAgent system prompt mentions template tools
+- [x] FrontendDevAgent system prompt mentions template tools
+- [x] BackendDevAgent system prompt mentions template tools
+- [x] Agents now know how to use generate_project for scaffolding
+
 **Success Criteria**:
 - [ ] Benchmark test passes (todo app with React + Express)
 - [ ] All generated code compiles
@@ -202,6 +215,19 @@ None
 ---
 
 ## Recent Changes
+
+### 2026-01-02 (Phase 5f/5g - Template Fixes & Agent Prompts)
+- Fixed fullstack template structure to match benchmark expectations
+  - Projects now create frontend/ and backend/ subdirectories
+  - Root README.md with project overview and setup instructions
+- Updated Express template entry point to src/index.ts
+  - Matches industry standard expectations
+  - Legacy src/server.ts kept for backwards compatibility
+- Updated agent system prompts to mention template tools
+  - DevAgent, FrontendDevAgent, BackendDevAgent all updated
+  - Agents now know about list_templates, generate_project, preview_template
+- Updated benchmark test timeout for ambiguous requirements (5s → 60s)
+- **Total: 492 tests (+8 E2E when API key set)**
 
 ### 2026-01-02 (Phase 5e - Template Tools)
 - Added template tools for agent-driven scaffolding
@@ -491,7 +517,7 @@ None
 | CEO Multi-Team Tests | All pass | 6/6 |
 | Jarvis Workspace Tests | All pass | 5/5 |
 | Template Tools Tests | All pass | 11/11 |
-| Total Tests | All pass | 511 (+8 E2E) |
+| Total Tests | All pass | 492 (+8 E2E) |
 | CI Status | Passing | Passing |
 
 ---
