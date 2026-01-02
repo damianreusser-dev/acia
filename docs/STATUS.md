@@ -2,6 +2,25 @@
 
 **Last Updated**: 2026-01-02
 
+---
+
+## Vision Context
+
+> **ACIA is not a product to sell - it's a personal autonomous workforce.**
+>
+> The ultimate vision: One person (User/CEO) + ACIA = Multiple autonomous companies generating revenue.
+>
+> See [VISION.md](VISION.md) for the complete autonomous company factory vision, including:
+> - Full company divisions (Tech, Marketing, Sales, Support, Ops, Finance)
+> - Revenue flywheel model
+> - Self-improvement with confidence-based autonomy
+> - Product lifecycle management
+> - Chief of Staff concept
+>
+> See [ROADMAP.md](ROADMAP.md) for detailed implementation phases 5-12.
+
+---
+
 ## Current Phase: 5 - Fullstack Capability (IN PROGRESS)
 
 ### Phase 1 - COMPLETED

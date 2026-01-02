@@ -667,6 +667,118 @@ const jarvis = new JarvisAgent({
 // Tools are auto-created: file tools, exec tools, git tools, template tools
 ```
 
+## Expanded Vision Conventions (Phases 6-12)
+
+### Company Division Structure
+
+ACIA will evolve beyond a Tech Division to include full company operations:
+
+| Division | Purpose | Key Agents |
+|----------|---------|------------|
+| Tech | Build products | Dev, QA, DevOps, Architect |
+| Marketing | Grow audience | Content, SEO, Social, Ads |
+| Sales | Convert users | Outreach, Demo, Closing |
+| Support | Help users | Triage, Response, Feedback |
+| Operations | Run business | Monitoring, Incident, SLA |
+| Finance | Track money | Revenue, Cost, Forecast |
+
+**Division Pattern:**
+```typescript
+interface Division {
+  name: string;
+  purpose: string;
+  agents: Agent[];
+  kpis: KPI[];              // How we measure success
+  escalationPath: Agent;    // Who to escalate to
+}
+```
+
+### Confidence-Based Autonomy
+
+For self-improvement and critical decisions, use confidence scoring:
+
+```
+Confidence > 95%: Auto-approve, notify after
+Confidence 80-95%: Auto-approve, notify immediately
+Confidence 60-80%: Propose plan, wait for approval
+Confidence < 60%: Escalate to user, don't attempt
+```
+
+**Pattern:**
+```typescript
+interface ConfidenceScore {
+  score: number;           // 0-100
+  reasoning: string;       // Why this confidence level
+  risks: string[];         // What could go wrong
+  mitigations: string[];   // How we'd handle failures
+}
+```
+
+### Product Lifecycle States
+
+Products managed by ACIA follow this lifecycle:
+
+```
+Concept → Building → Launching → Growing → Mature → Declining → Sunset
+```
+
+Each state has different attention levels and resource allocation.
+
+### Self-Improvement Pattern
+
+When ACIA modifies itself:
+
+1. **Gap Detection**: Identify capability we lack
+2. **Sandbox**: Create isolated branch/environment
+3. **Implementation**: Make changes in sandbox
+4. **Testing**: Full test suite + regression checks
+5. **Immune System**: Verify no bloat, no regressions
+6. **Merge**: Only if all checks pass
+7. **Notify**: User informed based on confidence level
+
+### QA Context Isolation
+
+QA agents must NOT share context with Dev agents:
+
+```typescript
+// GOOD - Fresh QA context
+const qaAgent = new PersonaQAAgent({
+  persona: 'first-time-user',
+  context: {
+    requirement: originalRequirement,  // Only original task
+    appAccess: runningAppUrl,          // Access to deployed app
+    // NO dev implementation details
+    // NO design decisions
+    // NO code context
+  }
+});
+
+// BAD - Shared context (defeats purpose)
+const qaAgent = new QAAgent({
+  context: devAgent.getContext()  // Shares blind spots!
+});
+```
+
+### User as Shareholder Model
+
+User interaction should follow this pattern:
+
+- **High attention**: New product launches, critical decisions
+- **Regular check-ins**: Growing products, weekly reports
+- **Hands-off**: Mature products, exception-based alerts
+- **Reports**: Weekly portfolio summaries, revenue updates
+
+### Revenue Flywheel
+
+Track the investment-return cycle:
+
+```
+Investment (User $) → ACIA Resources → Products Built →
+Revenue Generated → Reinvest → Better ACIA → More/Better Products
+```
+
+Every product should track: revenue, costs, profitability, trend.
+
 ## Quick Commands
 
 ```bash

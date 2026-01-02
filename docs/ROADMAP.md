@@ -1,526 +1,921 @@
 # ACIA Development Roadmap
 
 **Created**: 2026-01-02
-**Target**: Autonomous AI Software Factory
+**Updated**: 2026-01-02
+**Target**: Autonomous Company Factory
 
 ## Overview
 
-This roadmap defines the path from current state (Phase 4 complete) to full autonomous software factory capability (Phase 8).
+This roadmap defines the path from current state (Phase 5 in progress) to full autonomous company factory capability (Phase 12).
 
-## Current State Summary
+**Vision**: See [VISION.md](./VISION.md) for the complete autonomous company factory vision.
+
+## Phase Summary
 
 ```
-✅ Phase 1: Foundation (Complete)
-✅ Phase 2: Basic Team (Complete)
-✅ Phase 3: Company Structure (Complete)
-✅ Phase 4: Production Hardening (Complete)
-⬜ Phase 5: Fullstack Capability (Next)
-⬜ Phase 6: Production Quality
-⬜ Phase 7: Self-Improvement
-⬜ Phase 8: Learning & Optimization
+✅ Phase 1:  Foundation (Complete)
+✅ Phase 2:  Basic Team (Complete)
+✅ Phase 3:  Company Structure (Complete)
+✅ Phase 4:  Production Hardening (Complete)
+🔄 Phase 5:  Fullstack Capability (In Progress)
+⬜ Phase 6:  Deployment & Operations
+⬜ Phase 7:  Persona-Based QA & Validation
+⬜ Phase 8:  Self-Improvement Pipeline
+⬜ Phase 9:  Marketing & Growth Division
+⬜ Phase 10: Support & Feedback Division
+⬜ Phase 11: Finance & Portfolio Division
+⬜ Phase 12: Full Autonomy & Chief of Staff
 ```
 
 ---
 
-## Phase 5: Fullstack Capability
+## Completed Phases (1-4)
 
-### Goal
-ACIA can create complete fullstack applications from a single prompt.
+### Phase 1: Foundation ✅
+- Base Agent class with LLM integration
+- Tool system architecture
+- File operations (read, write, list)
+- Code execution tools
+- CLI interface
 
-### Benchmark
-```
-tests/e2e/benchmarks/fullstack-capability.test.ts
-- Create todo app with React frontend + Express backend
-- All code compiles, tests pass
-- API endpoints work correctly
-```
+### Phase 2: Basic Team ✅
+- Task system with status tracking
+- DevAgent, QAAgent, PMAgent
+- Team coordination (PM → Dev → QA)
+- Iteration loop with fix tasks
+- Escalation callbacks
 
-### 5a: Architecture Foundation
+### Phase 3: Company Structure ✅
+- Wiki/memory system
+- Design-first development
+- CEO agent for orchestration
+- Jarvis as universal entry point
+- Communication channels (pub/sub)
 
-**New: ArchitectAgent**
-```typescript
-// src/agents/architect/architect-agent.ts
-class ArchitectAgent extends Agent {
-  // Creates technical design before any coding
-  // Decides: tech stack, file structure, API design, data models
-  // Outputs: Design document for other agents to follow
-}
-```
+### Phase 4: Production Hardening ✅
+- Security hardening (injection prevention, path traversal)
+- Memory bounds (conversation history limits)
+- LLM response caching
+- Structured logging with correlation IDs
+- Performance metrics collection
 
-**Tasks:**
-- [ ] Create ArchitectAgent class
-- [ ] Add system design prompt template
-- [ ] Add tech stack decision logic
-- [ ] Add file structure planning
-- [ ] Add API design capability
-- [ ] Tests: 15+ unit tests
+---
 
-### 5b: Git Integration
+## Phase 5: Fullstack Capability 🔄
 
-**New: GitTools**
-```typescript
-// src/core/tools/git-tools.ts
-export const gitTools = [
-  {
-    name: 'git_init',
-    description: 'Initialize a git repository',
-    // ...
-  },
-  {
-    name: 'git_commit',
-    description: 'Commit staged changes',
-    // ...
-  },
-  {
-    name: 'git_branch',
-    description: 'Create or switch branches',
-    // ...
-  },
-];
-```
+**Status**: In Progress (~85% complete)
 
-**Tasks:**
-- [ ] Create git-tools.ts
-- [ ] Implement: git_init, git_add, git_commit, git_status, git_branch
-- [ ] Sandbox security (no remote operations without approval)
-- [ ] Tests: 10+ unit tests
+**Goal**: ACIA can create complete fullstack applications from a single prompt.
 
-### 5c: Specialized Dev Agents
+**Benchmark**: `tests/e2e/benchmarks/fullstack-capability.test.ts`
 
-**Split DevAgent into specialists:**
-```
-src/agents/dev/
-├── dev-agent.ts           # Base (existing, becomes abstract)
-├── frontend-dev-agent.ts  # React, Vue, HTML/CSS
-├── backend-dev-agent.ts   # Node, Express, APIs
-└── database-dev-agent.ts  # SQL, migrations, models
-```
+### Completed Sub-phases
 
-**Tasks:**
-- [ ] Create FrontendDevAgent (React/TypeScript focus)
-- [ ] Create BackendDevAgent (Node/Express focus)
-- [ ] Keep generic DevAgent for simple tasks
-- [ ] Add agent selection logic to PM/Team
-- [ ] Tests: 20+ unit tests
+#### 5a: Architecture Foundation ✅
+- [x] ArchitectAgent for system design
+- [x] SystemDesign interface with API contracts
+- [x] Technology stack decisions
+- [x] File structure planning
+- [x] 26 unit tests
 
-### 5d: Project Templates
+#### 5b: Git Integration ✅
+- [x] GitInitTool, GitAddTool, GitCommitTool
+- [x] GitStatusTool, GitBranchTool, GitLogTool
+- [x] Security: path validation, message sanitization
+- [x] 34 unit tests
 
-**Templates for common patterns:**
-```
-src/templates/
-├── index.ts              # Template loader
-├── react-vite/           # React + Vite + TypeScript
-│   ├── template.json     # Metadata
-│   └── files/            # Template files
-├── express-api/          # Express + TypeScript
-│   ├── template.json
-│   └── files/
-└── fullstack/            # Combined frontend + backend
-    ├── template.json
-    └── files/
-```
+#### 5c: Specialized Agents & Templates ✅
+- [x] FrontendDevAgent (React/TypeScript)
+- [x] BackendDevAgent (Node/Express)
+- [x] Keyword-based agent selection
+- [x] React + Vite template
+- [x] Express API template
+- [x] Fullstack template
+- [x] 82 unit tests
 
-**Tasks:**
-- [ ] Create template system
-- [ ] Add React + Vite template
-- [ ] Add Express API template
-- [ ] Add fullstack template
-- [ ] Add template selection logic
-- [ ] Tests: 10+ unit tests
+#### 5d: Benchmark Infrastructure ✅
+- [x] Workspace-based JarvisAgent
+- [x] Auto-creation of tools
+- [x] Metrics tracking
+- [x] 5 unit tests
 
-### 5e: Enhanced Team Coordination
+#### 5e: Template Tools ✅
+- [x] list_templates tool
+- [x] generate_project tool
+- [x] preview_template tool
+- [x] 11 unit tests
 
-**Multi-team capability:**
-```typescript
-// Enhanced CEO can manage multiple teams
-class CEOAgent {
-  async executeGoal(goal: string): Promise<GoalResult> {
-    const design = await this.architect.createDesign(goal);
+#### 5f/5g: Template Structure & Agent Prompts ✅
+- [x] Fullstack creates frontend/ and backend/ subdirs
+- [x] Root README.md generation
+- [x] Agent prompts mention template tools
 
-    // Spawn teams based on design
-    const frontendTeam = this.createTeam('frontend', design.frontend);
-    const backendTeam = this.createTeam('backend', design.backend);
+#### 5h: Scaffold Task Detection ✅
+- [x] PMAgent detects new project tasks
+- [x] DevAgent scaffold task handling
+- [x] 3 unit tests
 
-    // Execute in parallel where possible
-    const results = await Promise.all([
-      frontendTeam.execute(design.frontend.tasks),
-      backendTeam.execute(design.backend.tasks),
-    ]);
+### Remaining Work
 
-    return this.integrateResults(results);
-  }
-}
-```
-
-**Tasks:**
-- [ ] Add ArchitectAgent to CEO workflow
-- [ ] Implement multi-team spawning
-- [ ] Add parallel execution capability
-- [ ] Add result integration logic
-- [ ] Tests: 15+ unit tests
-
-### 5f: Integration & Benchmark
-
-**Tasks:**
-- [ ] Run fullstack benchmark test
-- [ ] Fix issues discovered
+#### 5i: Benchmark Validation
+- [ ] Run fullstack benchmark with real API
+- [ ] Fix issues discovered in multi-layer orchestration
 - [ ] Iterate until benchmark passes
 - [ ] Document learnings
 
 ### Phase 5 Success Criteria
-
-- [ ] Benchmark test `fullstack-capability.test.ts` passes
-- [ ] Todo app created with working frontend + backend
+- [ ] Benchmark test passes (todo app with React + Express)
 - [ ] All generated code compiles without errors
 - [ ] All generated tests pass
-- [ ] API endpoints work correctly (verified by test)
+- [ ] API endpoints work correctly
 
 ---
 
-## Phase 6: Production Quality
+## Phase 6: Deployment & Operations
 
-### Goal
-Generated code meets production standards: security, testing, documentation, deployment.
+**Status**: Planned (DETAILED)
 
-### Benchmark
-```
-- REST API with JWT authentication
-- 80%+ test coverage
-- OpenAPI documentation
-- Docker deployment
-- CI/CD pipeline
-```
+**Goal**: ACIA deploys products to real environments and keeps them running.
 
-### 6a: Enhanced QA Agents
+**Benchmark**: Deploy todo app to cloud, verify it runs, handle simulated incident.
 
-```
-src/agents/qa/
-├── qa-agent.ts           # General QA (existing)
-├── security-qa-agent.ts  # Security testing (OWASP)
-├── perf-qa-agent.ts      # Performance testing
-└── coverage-qa-agent.ts  # Coverage analysis
-```
+### 6a: DevOps Agent
 
-**Tasks:**
-- [ ] Create SecurityQAAgent
-- [ ] Create PerformanceQAAgent
-- [ ] Create CoverageQAAgent
-- [ ] Add to QA workflow
-- [ ] Tests: 25+ unit tests
-
-### 6b: Quality Gates
+**New**: `src/agents/devops/devops-agent.ts`
 
 ```typescript
-// src/core/quality/gates.ts
-interface QualityGate {
-  name: string;
-  check: (project: Project) => Promise<QualityResult>;
-  required: boolean;
-  threshold?: number;
+class DevOpsAgent extends Agent {
+  // Creates deployment artifacts
+  // Manages infrastructure
+  // Handles deployments
 }
+```
 
-const gates: QualityGate[] = [
-  { name: 'lint', check: runLint, required: true },
-  { name: 'typecheck', check: runTypecheck, required: true },
-  { name: 'tests', check: runTests, required: true },
-  { name: 'coverage', check: checkCoverage, required: true, threshold: 80 },
-  { name: 'security', check: securityScan, required: true },
-  { name: 'bundle-size', check: checkBundleSize, required: false },
+**Tasks**:
+- [ ] Create DevOpsAgent class
+- [ ] System prompt for infrastructure expertise
+- [ ] Docker knowledge (Dockerfile, compose)
+- [ ] CI/CD knowledge (GitHub Actions)
+- [ ] Cloud deployment patterns
+- [ ] Tests: 20+ unit tests
+
+### 6b: Docker Tools
+
+**New**: `src/core/tools/docker-tools.ts`
+
+```typescript
+const dockerTools = [
+  { name: 'docker_build', description: 'Build Docker image' },
+  { name: 'docker_run', description: 'Run container' },
+  { name: 'docker_compose_up', description: 'Start compose stack' },
+  { name: 'docker_compose_down', description: 'Stop compose stack' },
+  { name: 'docker_logs', description: 'Get container logs' },
+  { name: 'docker_ps', description: 'List containers' },
 ];
 ```
 
-**Tasks:**
-- [ ] Create quality gates system
-- [ ] Integrate with Team workflow
-- [ ] Add gate reports to wiki
+**Tasks**:
+- [ ] Create docker-tools.ts
+- [ ] Implement all docker tools
+- [ ] Security: no privileged mode, resource limits
 - [ ] Tests: 15+ unit tests
 
-### 6c: DevOps Agent
+### 6c: Cloud Deployment Tools
+
+**New**: `src/core/tools/deploy-tools.ts`
 
 ```typescript
-// src/agents/devops/devops-agent.ts
-class DevOpsAgent extends Agent {
-  // Creates: Dockerfile, docker-compose.yml, CI/CD configs
-  // Knows: Docker, GitHub Actions, deployment patterns
+const deployTools = [
+  { name: 'deploy_to_railway', description: 'Deploy to Railway' },
+  { name: 'deploy_to_vercel', description: 'Deploy to Vercel' },
+  { name: 'get_deployment_status', description: 'Check deployment status' },
+  { name: 'get_deployment_logs', description: 'Get deployment logs' },
+  { name: 'rollback_deployment', description: 'Rollback to previous version' },
+];
+```
+
+**Tasks**:
+- [ ] Create deploy-tools.ts
+- [ ] Railway integration (simple Node/Docker deploys)
+- [ ] Vercel integration (frontend deploys)
+- [ ] Deployment status tracking
+- [ ] Rollback capability
+- [ ] Tests: 15+ unit tests
+
+### 6d: Monitoring Agent
+
+**New**: `src/agents/ops/monitoring-agent.ts`
+
+```typescript
+class MonitoringAgent extends Agent {
+  // Watches deployed services
+  // Detects issues
+  // Triggers alerts
 }
 ```
 
-**Tasks:**
-- [ ] Create DevOpsAgent
-- [ ] Add Docker tools (build, run, compose)
-- [ ] Add CI/CD template generation
+**Tasks**:
+- [ ] Create MonitoringAgent class
+- [ ] Health check polling
+- [ ] Error rate detection
+- [ ] Uptime tracking
+- [ ] Alert generation
 - [ ] Tests: 15+ unit tests
 
-### 6d: Documentation Agent
+### 6e: Incident Agent
+
+**New**: `src/agents/ops/incident-agent.ts`
 
 ```typescript
-// src/agents/docs/docs-agent.ts
-class DocsAgent extends Agent {
-  async generateDocs(project: Project): Promise<Documentation> {
-    return {
-      readme: this.generateReadme(project),
-      api: this.generateOpenAPI(project),
-      architecture: this.generateArchDiagram(project),
-    };
-  }
+class IncidentAgent extends Agent {
+  // Responds to alerts
+  // Executes runbooks
+  // Escalates if needed
 }
 ```
 
-**Tasks:**
-- [ ] Create DocsAgent
-- [ ] Add OpenAPI generation
-- [ ] Add README generation
-- [ ] Add architecture diagram generation
-- [ ] Tests: 10+ unit tests
+**Tasks**:
+- [ ] Create IncidentAgent class
+- [ ] Runbook system (wiki-based)
+- [ ] Automated responses (restart, scale, rollback)
+- [ ] Escalation to user if manual intervention needed
+- [ ] Post-incident logging
+- [ ] Tests: 15+ unit tests
+
+### 6f: Ops Division Integration
+
+**Modify**: `src/company/divisions/ops-division.ts`
+
+**Tasks**:
+- [ ] Create OpsDivision class
+- [ ] Integrate DevOpsAgent, MonitoringAgent, IncidentAgent
+- [ ] Division workflow (deploy → monitor → respond)
+- [ ] Integration with CEO for escalation
+- [ ] Tests: 10+ integration tests
 
 ### Phase 6 Success Criteria
+- [ ] DevOpsAgent creates valid Dockerfile and docker-compose.yml
+- [ ] App deploys to Railway or Vercel successfully
+- [ ] Monitoring detects simulated error
+- [ ] IncidentAgent triggers rollback on failure
+- [ ] Full deploy → monitor → incident → recover flow works
 
-- [ ] Generated APIs have JWT authentication
-- [ ] Test coverage >= 80%
-- [ ] OpenAPI docs auto-generated
-- [ ] Docker deployment works
-- [ ] CI/CD pipeline included
-- [ ] Security scan passes
-
----
-
-## Phase 7: Self-Improvement
-
-### Goal
-ACIA can modify and improve its own codebase.
-
-### Benchmark
+### Phase 6 New Files
 ```
-- Add a new tool to ACIA itself
-- Fix a bug in ACIA code
-- All existing tests still pass
-```
-
-### 7a: Codebase Understanding
-
-```typescript
-// src/core/self/codebase-index.ts
-class CodebaseIndex {
-  // Index ACIA's own code
-  // Understand patterns, conventions, dependencies
-  // Enable context-aware self-modification
-}
-```
-
-**Tasks:**
-- [ ] Create codebase indexer
-- [ ] Extract patterns and conventions
-- [ ] Map dependencies
-- [ ] Tests: 10+ unit tests
-
-### 7b: Safe Self-Modification
-
-```typescript
-// src/core/self/modification-pipeline.ts
-class SelfModificationPipeline {
-  async modify(change: Change): Promise<Result> {
-    // 1. Create branch
-    // 2. Apply changes
-    // 3. Run ALL tests
-    // 4. Validate ACIA still works
-    // 5. Merge or request approval
-  }
-}
-```
-
-**Tasks:**
-- [ ] Create modification pipeline
-- [ ] Add branch isolation
-- [ ] Add full test validation
-- [ ] Add self-health check
-- [ ] Tests: 15+ unit tests
-
-### Phase 7 Success Criteria
-
-- [ ] ACIA can add a new tool to itself
-- [ ] All 372+ existing tests still pass
-- [ ] New tool has tests
-- [ ] Documentation updated
-
----
-
-## Phase 8: Learning & Optimization
-
-### Goal
-ACIA learns from projects and optimizes cost/performance.
-
-### Benchmark
-```
-- Build second todo app 30% faster than first
-- Use fewer tokens for similar tasks
-- Reuse learned patterns
-```
-
-### 8a: Pattern Library
-
-```typescript
-// src/core/learning/pattern-library.ts
-interface Pattern {
-  name: string;
-  context: string[];      // When to apply
-  template: string;       // Code template
-  successRate: number;
-}
-
-class PatternLibrary {
-  learn(project: CompletedProject): Pattern[];
-  suggest(context: TaskContext): Pattern[];
-}
-```
-
-**Tasks:**
-- [ ] Create pattern extraction
-- [ ] Create pattern storage
-- [ ] Create pattern matching
-- [ ] Integrate with planning
-- [ ] Tests: 15+ unit tests
-
-### 8b: Cost Optimization
-
-```typescript
-// src/core/optimization/cost-optimizer.ts
-class CostOptimizer {
-  // Select cheaper models for simple tasks
-  // Cache common operations
-  // Batch similar requests
-  // Track cost per project
-}
-```
-
-**Tasks:**
-- [ ] Create cost tracking
-- [ ] Add model selection logic
-- [ ] Enhance caching
-- [ ] Add batch processing
-- [ ] Tests: 10+ unit tests
-
-### Phase 8 Success Criteria
-
-- [ ] Similar projects built faster
-- [ ] Token usage reduced
-- [ ] Cost per project tracked
-- [ ] Patterns reused across projects
-
----
-
-## Architecture Evolution
-
-### Current (Phase 4)
-
-```
-User → Jarvis → CEO → Team (PM→Dev→QA)
-```
-
-### Target (Phase 8)
-
-```
-User → Jarvis → CEO → Architect
-                  ↓
-         ┌───────┴───────┐
-         ↓               ↓
-    Frontend Team   Backend Team   DevOps Team
-    (PM→FE Dev→QA) (PM→BE Dev→QA) (PM→DevOps→QA)
-         ↓               ↓              ↓
-         └───────────────┴──────────────┘
-                         ↓
-                   Quality Gates
-                         ↓
-                   Pattern Library (learns)
-                         ↓
-                   Final Output
-```
-
----
-
-## New Files Summary
-
-### Phase 5 (New Files)
-```
-src/agents/architect/
-  └── architect-agent.ts
-src/agents/dev/
-  ├── frontend-dev-agent.ts
-  ├── backend-dev-agent.ts
-  └── database-dev-agent.ts
-src/core/tools/
-  └── git-tools.ts
-src/templates/
-  ├── index.ts
-  ├── react-vite/
-  ├── express-api/
-  └── fullstack/
-```
-
-### Phase 6 (New Files)
-```
-src/agents/qa/
-  ├── security-qa-agent.ts
-  ├── perf-qa-agent.ts
-  └── coverage-qa-agent.ts
 src/agents/devops/
   └── devops-agent.ts
-src/agents/docs/
-  └── docs-agent.ts
-src/core/quality/
-  └── gates.ts
+src/agents/ops/
+  ├── monitoring-agent.ts
+  └── incident-agent.ts
 src/core/tools/
-  └── docker-tools.ts
+  ├── docker-tools.ts
+  └── deploy-tools.ts
+src/company/divisions/
+  └── ops-division.ts
+tests/unit/
+  ├── devops-agent.test.ts
+  ├── monitoring-agent.test.ts
+  ├── incident-agent.test.ts
+  ├── docker-tools.test.ts
+  └── deploy-tools.test.ts
+tests/integration/
+  └── ops-division.test.ts
 ```
 
-### Phase 7 (New Files)
+### Phase 6 Test Count: ~90 new tests
+
+---
+
+## Phase 7: Persona-Based QA & Validation
+
+**Status**: Planned (DETAILED)
+
+**Goal**: QA that catches real issues through persona simulation with context isolation.
+
+**Benchmark**: Chess game where PersonaQA finds logic bugs that unit tests miss.
+
+### 7a: Persona QA Agent
+
+**New**: `src/agents/qa/persona-qa-agent.ts`
+
+```typescript
+interface Persona {
+  name: string;
+  description: string;
+  expectations: string[];
+  behavior: 'exploratory' | 'systematic' | 'adversarial';
+}
+
+class PersonaQAAgent extends Agent {
+  private persona: Persona;
+
+  // CRITICAL: Fresh LLM context, NO dev history
+  // Only knows: requirement + running app + persona
+
+  async testAsPersona(app: RunningApp, requirement: string): Promise<TestReport>;
+}
+```
+
+**Personas to implement**:
+- [ ] BeginnerPersona: Tries obvious things, expects guidance
+- [ ] ExpertPersona: Tries edge cases, expects completeness
+- [ ] AdversarialPersona: Tries to break things
+- [ ] AccessibilityPersona: Keyboard navigation, screen reader
+- [ ] MobilePersona: Small screen, touch interactions
+
+**Tasks**:
+- [ ] Create PersonaQAAgent class
+- [ ] Persona definition interface
+- [ ] Context isolation (fresh LLM session)
+- [ ] 5 built-in personas
+- [ ] Custom persona creation
+- [ ] Tests: 25+ unit tests
+
+### 7b: Visual QA Agent
+
+**New**: `src/agents/qa/visual-qa-agent.ts`
+
+```typescript
+class VisualQAAgent extends Agent {
+  // Takes screenshots of running app
+  // Uses multimodal LLM to analyze
+  // Detects visual issues
+}
+```
+
+**Tasks**:
+- [ ] Create VisualQAAgent class
+- [ ] Screenshot capture tool (Puppeteer/Playwright)
+- [ ] Multimodal LLM integration (Claude vision)
+- [ ] Visual issue detection prompts
+- [ ] Golden image comparison (optional)
+- [ ] Tests: 15+ unit tests
+
+### 7c: Oracle Testing System
+
+**New**: `src/core/testing/oracle-system.ts`
+
+```typescript
+interface Oracle {
+  domain: string;           // e.g., 'chess', 'math', 'date'
+  implementation: string;   // e.g., 'chess.js', 'mathjs'
+  verify: (input: any, output: any) => boolean;
+}
+
+class OracleTestingSystem {
+  async findOracle(domain: string): Promise<Oracle | null>;
+  async verifyAgainstOracle(app: RunningApp, oracle: Oracle): Promise<OracleReport>;
+}
+```
+
+**Built-in oracles**:
+- [ ] Chess (chess.js)
+- [ ] Math calculations (mathjs)
+- [ ] Date/time (date-fns)
+- [ ] JSON validation (ajv)
+
+**Tasks**:
+- [ ] Create OracleTestingSystem
+- [ ] Oracle interface and registry
+- [ ] Automatic oracle discovery based on domain
+- [ ] Comparison and reporting
+- [ ] 4 built-in oracles
+- [ ] Tests: 20+ unit tests
+
+### 7d: App Interaction Tools
+
+**New**: `src/core/tools/interaction-tools.ts`
+
+```typescript
+const interactionTools = [
+  { name: 'launch_app', description: 'Start the app locally' },
+  { name: 'screenshot', description: 'Take screenshot of page' },
+  { name: 'click', description: 'Click element by selector' },
+  { name: 'type', description: 'Type text into element' },
+  { name: 'navigate', description: 'Go to URL' },
+  { name: 'get_text', description: 'Get text content of element' },
+  { name: 'check_accessibility', description: 'Run accessibility audit' },
+];
+```
+
+**Tasks**:
+- [ ] Create interaction-tools.ts
+- [ ] Puppeteer/Playwright integration
+- [ ] All interaction tools
+- [ ] Accessibility audit (axe-core)
+- [ ] Tests: 20+ unit tests
+
+### 7e: QA Division Enhancement
+
+**Modify**: `src/company/divisions/tech-division.ts`
+
+**Tasks**:
+- [ ] Add PersonaQAAgent to QA workflow
+- [ ] Add VisualQAAgent to QA workflow
+- [ ] Oracle testing when applicable
+- [ ] QA runs AFTER unit tests pass
+- [ ] Persona QA has isolated context
+- [ ] Tests: 10+ integration tests
+
+### Phase 7 Success Criteria
+- [ ] PersonaQAAgent finds UI bug that unit tests missed
+- [ ] Different personas catch different types of issues
+- [ ] VisualQAAgent identifies visual regression
+- [ ] Oracle testing catches chess logic error
+- [ ] QA has NO access to dev implementation context
+- [ ] Full isolation verified (fresh LLM session per persona)
+
+### Phase 7 New Files
+```
+src/agents/qa/
+  ├── persona-qa-agent.ts
+  └── visual-qa-agent.ts
+src/core/testing/
+  └── oracle-system.ts
+src/core/tools/
+  └── interaction-tools.ts
+tests/unit/
+  ├── persona-qa-agent.test.ts
+  ├── visual-qa-agent.test.ts
+  ├── oracle-system.test.ts
+  └── interaction-tools.test.ts
+tests/integration/
+  └── persona-qa-workflow.test.ts
+```
+
+### Phase 7 Test Count: ~90 new tests
+
+---
+
+## Phase 8: Self-Improvement Pipeline
+
+**Status**: Planned (DETAILED)
+
+**Goal**: ACIA can safely modify itself with confidence-based autonomy.
+
+**Benchmark**: ACIA detects missing capability, adds it, verifies no regression.
+
+### 8a: Capability Registry
+
+**New**: `src/core/self/capability-registry.ts`
+
+```typescript
+interface Capability {
+  name: string;
+  description: string;
+  requires: string[];        // Dependencies
+  provides: string[];        // What it enables
+  agents: string[];          // Which agents have it
+  tools: string[];           // Which tools it needs
+  canTest: boolean;          // Can we verify it works?
+  confidence: number;        // How reliable is it?
+}
+
+class CapabilityRegistry {
+  list(): Capability[];
+  has(name: string): boolean;
+  check(requirement: string): CapabilityCheck;
+  add(capability: Capability): void;
+  remove(name: string): void;
+}
+```
+
+**Tasks**:
+- [ ] Create CapabilityRegistry class
+- [ ] Capability interface
+- [ ] Requirement parsing (from task description)
+- [ ] Dependency resolution
+- [ ] Persistence (wiki-based)
+- [ ] Tests: 20+ unit tests
+
+### 8b: Gap Detector
+
+**New**: `src/core/self/gap-detector.ts`
+
+```typescript
+interface CapabilityGap {
+  required: string;
+  reason: string;
+  suggestions: string[];
+  estimatedEffort: 'small' | 'medium' | 'large';
+}
+
+class GapDetector {
+  async analyzeTask(task: Task): Promise<CapabilityGap[]>;
+  async canWeDoThis(request: string): Promise<{
+    capable: boolean;
+    gaps: CapabilityGap[];
+  }>;
+}
+```
+
+**Tasks**:
+- [ ] Create GapDetector class
+- [ ] Task analysis for required capabilities
+- [ ] Gap identification
+- [ ] Effort estimation
+- [ ] Suggestion generation
+- [ ] Tests: 15+ unit tests
+
+### 8c: Sandbox Environment
+
+**New**: `src/core/self/sandbox.ts`
+
+```typescript
+class SelfModificationSandbox {
+  async create(): Promise<SandboxInstance>;
+  async applyChanges(sandbox: SandboxInstance, changes: Change[]): Promise<void>;
+  async runTests(sandbox: SandboxInstance): Promise<TestResult>;
+  async merge(sandbox: SandboxInstance): Promise<MergeResult>;
+  async destroy(sandbox: SandboxInstance): Promise<void>;
+}
+```
+
+**Implementation**: Git worktree-based isolation
+
+**Tasks**:
+- [ ] Create SelfModificationSandbox class
+- [ ] Git worktree creation/management
+- [ ] Change application in sandbox
+- [ ] Full test suite execution
+- [ ] Safe merge to main
+- [ ] Cleanup on failure/success
+- [ ] Tests: 15+ unit tests
+
+### 8d: Immune System
+
+**New**: `src/core/self/immune-system.ts`
+
+```typescript
+interface ImmuneCheck {
+  name: string;
+  description: string;
+  check: (before: SystemState, after: SystemState) => Promise<CheckResult>;
+  severity: 'block' | 'warn';
+}
+
+class ImmuneSystem {
+  checks: ImmuneCheck[];
+
+  async validate(before: SystemState, after: SystemState): Promise<ImmuneResult>;
+  async getSystemState(): Promise<SystemState>;
+}
+```
+
+**Built-in checks**:
+- [ ] no-regression: Tests still pass
+- [ ] no-bloat: Codebase growth within budget
+- [ ] no-dead-code: No unused exports added
+- [ ] no-complexity-spike: Cyclomatic complexity stable
+- [ ] capability-justified: New code serves stated goal
+
+**Tasks**:
+- [ ] Create ImmuneSystem class
+- [ ] SystemState snapshot
+- [ ] 5 built-in immune checks
+- [ ] Custom check registration
+- [ ] Severity-based blocking/warning
+- [ ] Tests: 20+ unit tests
+
+### 8e: Confidence Evaluator
+
+**New**: `src/core/self/confidence-evaluator.ts`
+
+```typescript
+interface ConfidenceFactors {
+  similarChangesBefore: number;     // 0-100
+  testCoverage: number;             // 0-100
+  scopeSize: number;                // Lines changed
+  patternMatch: boolean;            // Known pattern?
+  rollbackEase: 'easy' | 'medium' | 'hard';
+}
+
+class ConfidenceEvaluator {
+  async evaluate(change: ProposedChange): Promise<{
+    score: number;              // 0-100
+    factors: ConfidenceFactors;
+    recommendation: 'auto' | 'notify' | 'approve' | 'escalate';
+  }>;
+}
+```
+
+**Thresholds**:
+- >95: Auto-approve, notify after
+- 80-95: Auto-approve, notify immediately
+- 60-80: Wait for approval
+- <60: Escalate, don't attempt
+
+**Tasks**:
+- [ ] Create ConfidenceEvaluator class
+- [ ] Factor calculation
+- [ ] Historical success tracking
+- [ ] Recommendation generation
+- [ ] Threshold configuration
+- [ ] Tests: 15+ unit tests
+
+### 8f: Self-Modification Pipeline
+
+**New**: `src/core/self/modification-pipeline.ts`
+
+```typescript
+class SelfModificationPipeline {
+  async propose(gap: CapabilityGap): Promise<ModificationProposal>;
+  async execute(proposal: ModificationProposal): Promise<ModificationResult>;
+
+  // Full flow:
+  // 1. Detect gap
+  // 2. Plan modification
+  // 3. Create sandbox
+  // 4. Apply changes
+  // 5. Run tests
+  // 6. Immune system check
+  // 7. Confidence evaluation
+  // 8. Auto-approve or wait
+  // 9. Merge or rollback
+  // 10. Update capability registry
+}
+```
+
+**Tasks**:
+- [ ] Create SelfModificationPipeline class
+- [ ] Full pipeline orchestration
+- [ ] Integration with all Phase 8 components
+- [ ] Notification system for approvals
+- [ ] Audit logging
+- [ ] Tests: 15+ unit tests
+
+### 8g: ACIA Self-Company Integration
+
+**Tasks**:
+- [ ] ACIA registered as a "company" in Jarvis
+- [ ] ACIA CEO handles self-improvement requests
+- [ ] Tech Division executes modifications
+- [ ] Monitoring Division tracks system health
+- [ ] Tests: 10+ integration tests
+
+### Phase 8 Success Criteria
+- [ ] CapabilityRegistry accurately reflects system capabilities
+- [ ] GapDetector identifies when capability is missing
+- [ ] Sandbox isolates changes safely
+- [ ] Immune system blocks regressions
+- [ ] Confidence evaluation works correctly
+- [ ] High-confidence changes auto-merge
+- [ ] Low-confidence changes wait for approval
+- [ ] Full self-improvement loop completes successfully
+- [ ] New capability available after merge
+
+### Phase 8 New Files
 ```
 src/core/self/
-  ├── codebase-index.ts
+  ├── capability-registry.ts
+  ├── gap-detector.ts
+  ├── sandbox.ts
+  ├── immune-system.ts
+  ├── confidence-evaluator.ts
   └── modification-pipeline.ts
+tests/unit/
+  ├── capability-registry.test.ts
+  ├── gap-detector.test.ts
+  ├── sandbox.test.ts
+  ├── immune-system.test.ts
+  ├── confidence-evaluator.test.ts
+  └── modification-pipeline.test.ts
+tests/integration/
+  └── self-improvement.test.ts
 ```
 
-### Phase 8 (New Files)
+### Phase 8 Test Count: ~110 new tests
+
+---
+
+## Phase 9: Marketing & Growth Division
+
+**Status**: Planned (HIGH-LEVEL)
+
+**Goal**: ACIA can market products, not just build them.
+
+### Components
+
+| Component | Description |
+|-----------|-------------|
+| ContentAgent | Blog posts, tutorials, documentation |
+| SEOAgent | Search optimization |
+| SocialAgent | Social media presence |
+| AdsAgent | Paid campaign management |
+| GrowthAnalyticsAgent | Track what works |
+
+### Required Integrations
+
+- CMS (headless, e.g., Sanity, Strapi)
+- Social APIs (Twitter, LinkedIn)
+- Analytics (Plausible, PostHog)
+- Ad platforms (Google Ads, Meta Ads)
+
+### Success Criteria
+
+- [ ] ContentAgent publishes blog post about product
+- [ ] SEOAgent optimizes page metadata
+- [ ] SocialAgent schedules and posts content
+- [ ] Analytics tracked and reported
+- [ ] A/B testing for landing pages
+
+### Estimated Test Count: ~80 new tests
+
+---
+
+## Phase 10: Support & Feedback Division
+
+**Status**: Planned (HIGH-LEVEL)
+
+**Goal**: ACIA handles user communication and learns from feedback.
+
+### Components
+
+| Component | Description |
+|-----------|-------------|
+| TriageAgent | Categorize incoming messages |
+| ResponseAgent | Draft and send responses |
+| FeedbackProcessorAgent | Extract insights |
+| EscalationAgent | Route complex issues |
+
+### Required Integrations
+
+- Email (SendGrid, Resend)
+- Chat (Intercom, Crisp)
+- Feedback collection (surveys)
+- Issue tracking (internal backlog)
+
+### Success Criteria
+
+- [ ] Auto-respond to support ticket
+- [ ] Categorize as bug/question/feature request
+- [ ] Extract feature requests to backlog
+- [ ] Route bugs to Tech division
+- [ ] Learn patterns from similar issues
+
+### Estimated Test Count: ~70 new tests
+
+---
+
+## Phase 11: Finance & Portfolio Division
+
+**Status**: Planned (HIGH-LEVEL)
+
+**Goal**: ACIA tracks money and manages multiple products.
+
+### Components
+
+| Component | Description |
+|-----------|-------------|
+| RevenueTracker | Monitor income sources |
+| CostTracker | Monitor expenses |
+| ProfitabilityAnalyzer | Per-product analysis |
+| ResourceAllocator | Investment decisions |
+| ForecastAgent | Projections |
+
+### Required Integrations
+
+- Payment processors (Stripe)
+- Cloud billing APIs
+- LLM cost tracking (internal)
+
+### Success Criteria
+
+- [ ] Track revenue per product
+- [ ] Track costs per product
+- [ ] Calculate profitability
+- [ ] Recommend resource allocation
+- [ ] Generate financial reports (daily, weekly, monthly)
+- [ ] Flag anomalies (cost spikes, revenue drops)
+
+### Estimated Test Count: ~60 new tests
+
+---
+
+## Phase 12: Full Autonomy & Chief of Staff
+
+**Status**: Planned (HIGH-LEVEL)
+
+**Goal**: System runs autonomously with user as shareholder.
+
+### Components
+
+| Component | Description |
+|-----------|-------------|
+| ChiefOfStaffAgent | User's personal assistant |
+| OpportunityRadar | Find new product ideas |
+| PortfolioDashboard | Overview of all products |
+| NotificationSystem | Reports, questions, approvals |
+
+### Chief of Staff Capabilities
+
+- Synthesize across all products
+- Prepare decisions for user
+- Filter what needs attention
+- Track pending decisions
+- Suggest time allocation
+
+### Notification Types
+
+```typescript
+enum NotificationType {
+  INFO,          // "Project X completed"
+  REPORT,        // "Weekly status"
+  QUESTION,      // "Should we use X or Y?"
+  ESCALATION,    // "Blocked, need help"
+  ALERT,         // "Anomaly detected"
+  APPROVAL,      // "Ready to deploy, approve?"
+}
 ```
-src/core/learning/
-  └── pattern-library.ts
-src/core/optimization/
-  └── cost-optimizer.ts
-```
+
+### Success Criteria
+
+- [ ] Weekly portfolio report generated automatically
+- [ ] Chief of Staff answers "What needs my attention?"
+- [ ] Opportunities identified and evaluated
+- [ ] One-click approve/reject for decisions
+- [ ] Products run without daily intervention
+- [ ] User involvement < 5 hours/week for 5+ products
+
+### Estimated Test Count: ~80 new tests
 
 ---
 
 ## Test Count Projections
 
-| Phase | New Tests | Total |
-|-------|-----------|-------|
-| 4 (Current) | - | 372 |
-| 5 | ~70 | ~442 |
-| 6 | ~65 | ~507 |
-| 7 | ~25 | ~532 |
-| 8 | ~25 | ~557 |
+| Phase | New Tests | Running Total |
+|-------|-----------|---------------|
+| 1-4 (Complete) | - | 372 |
+| 5 (In Progress) | ~120 | ~492 |
+| 6 | ~90 | ~582 |
+| 7 | ~90 | ~672 |
+| 8 | ~110 | ~782 |
+| 9 | ~80 | ~862 |
+| 10 | ~70 | ~932 |
+| 11 | ~60 | ~992 |
+| 12 | ~80 | ~1072 |
+
+**Target**: 1000+ tests for full system
+
+---
+
+## Architecture Evolution
+
+### Current (Phase 5)
+
+```
+User → Jarvis → CEO → Team (PM → Dev → QA)
+```
+
+### Target (Phase 12)
+
+```
+User
+  ↓
+Chief of Staff (your agent)
+  ↓
+Jarvis (system orchestrator)
+  ↓
+┌─────────────────────────────────────────────┐
+│              Companies                       │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐    │
+│  │Product A│  │Product B│  │  ACIA   │    │
+│  └────┬────┘  └────┬────┘  └────┬────┘    │
+│       │            │            │          │
+│       └────────────┴────────────┘          │
+│                    │                        │
+│              ┌─────┴─────┐                 │
+│              │  Company  │                 │
+│              │ Structure │                 │
+│              └─────┬─────┘                 │
+│     ┌──────────────┼──────────────┐       │
+│     ↓              ↓              ↓       │
+│  ┌──────┐     ┌──────┐      ┌──────┐     │
+│  │ Tech │     │Market│      │  Ops │     │
+│  │ Div  │     │ Div  │      │  Div │     │
+│  └──────┘     └──────┘      └──────┘     │
+│     ↓              ↓              ↓       │
+│  ┌──────┐     ┌──────┐      ┌──────┐     │
+│  │Support│    │ Sales │     │Finance│    │
+│  │  Div │     │  Div  │     │  Div │     │
+│  └──────┘     └──────┘      └──────┘     │
+└─────────────────────────────────────────────┘
+```
 
 ---
 
 ## Risk Register
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Context overflow | High | Summarization, focused prompts |
-| Infinite loops | High | Max iterations, cost caps |
-| Bad code quality | Medium | Multiple QA passes, quality gates |
-| Cost explosion | Medium | Token tracking, model selection |
-| Security issues | High | Sandboxing, security scans |
-| Hallucinated deps | Medium | Verification, known-good templates |
-
----
-
-## Immediate Next Steps
-
-1. **Verify benchmark test runs** (even if it fails)
-2. **Start Phase 5a**: Create ArchitectAgent
-3. **Add GitTools** for version control
-4. **Create first template** (Express API)
-5. **Iterate until benchmark passes**
+| Risk | Impact | Phase | Mitigation |
+|------|--------|-------|------------|
+| Context overflow | High | All | Summarization, focused prompts |
+| Infinite loops | High | 5-8 | Max iterations, cost caps |
+| Bad code quality | Medium | 5-7 | Multiple QA passes, quality gates |
+| Cost explosion | Medium | All | Token tracking, budgets |
+| Security issues | High | 6 | Sandboxing, security scans |
+| Self-modification bugs | High | 8 | Sandbox, immune system, rollback |
+| External API changes | Medium | 9-11 | Abstraction layers, monitoring |
+| User overwhelm | Medium | 12 | Chief of Staff filtering |
 
 ---
 
@@ -528,10 +923,11 @@ src/core/optimization/
 
 **ACIA is successful when:**
 
-1. A user can say "Build me a todo app" and get a working application
-2. The code is production-quality (typed, tested, documented)
-3. No human intervention needed for standard projects
-4. Cost is predictable and reasonable
-5. Each project makes the system smarter
+1. A user can say "Build me a SaaS" and get a working, deployed product
+2. The product is marketed, supported, and monitored autonomously
+3. Revenue and costs are tracked automatically
+4. User involvement is < 5 hours/week for portfolio of 5+ products
+5. System improves itself when capability gaps are detected
+6. Each project makes the system smarter
 
-**The benchmark tests define this success. When they pass, we've achieved the vision.**
+**The benchmark tests at each phase define incremental success.**
