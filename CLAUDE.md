@@ -157,24 +157,31 @@ User/Human
 - **Agent Memory**: Short-term context, long-term summaries
 - **Channels**: Message history for async communication
 
-## Current Phase: 1 - Foundation
+## Current Phase: 3 - Company Structure
 
-### Phase 1 Goal
-A single working agent that can:
-- Receive a task via CLI
-- Use LLM to reason about it
-- Write code to a file
-- Write a test for the code
-- Run the test
-- Report success/failure
+### Completed Phases
 
-### Phase 1 Success Criteria
-- [ ] Base Agent class with LLM integration
-- [ ] CLI can send task to agent
-- [ ] Agent writes working code
-- [ ] Agent writes passing test
-- [ ] Test actually runs and verifies code
-- [ ] Full flow documented and reproducible
+**Phase 1 - Foundation** ✅
+- Base Agent class with LLM integration
+- CLI for user interaction
+- File operations (read, write, list) with sandbox
+- Code execution (run TypeScript, run tests)
+- Tool loop for autonomous multi-step tasks
+
+**Phase 2 - Basic Team** ✅
+- Task system with status, priority, attempts
+- DevAgent, QAAgent, PMAgent specialized agents
+- Team class coordinating PM → Dev → QA workflow
+- Dev → QA → Fix iteration loop with maxIterations
+- E2E tests validating real LLM integration
+- 122 unit/integration tests + 2 E2E tests
+
+### Phase 3 Goal
+Full company hierarchy with persistent knowledge:
+- [ ] Wiki/Memory system for agent knowledge
+- [ ] CEO agent for higher-level orchestration
+- [ ] Jarvis agent as universal entry point
+- [ ] Communication channels between agents
 
 ## Key Decisions Log
 
@@ -183,6 +190,10 @@ A single working agent that can:
 | 2026-01-01 | TypeScript over Python | Type safety, async-native, consistent tooling |
 | 2026-01-01 | File-based wiki first | Human-readable, git-trackable, simple start |
 | 2026-01-01 | CLI before UI | Focus on core functionality first |
+| 2026-01-02 | Shared LLM client | Simpler than per-agent clients |
+| 2026-01-02 | PM read-only tools | PM plans, Dev/QA execute |
+| 2026-01-02 | maxIterations default 3 | Prevent infinite loops, allow fixes |
+| 2026-01-02 | E2E tests skip by default | Require `RUN_E2E_TESTS=true` to avoid API costs |
 
 ## Notes for Claude
 
@@ -192,6 +203,8 @@ A single working agent that can:
 - Update STATUS.md after significant progress
 - Create GitHub issues for discovered work
 - Stop and fix if something breaks
+- Run `npm test` after every change
+- Use `npm run typecheck` to catch type errors early
 
 ### DON'T:
 - Write code without tests
@@ -205,3 +218,99 @@ A single working agent that can:
 1. Document the blocker in STATUS.md
 2. Check if it's a scope issue (maybe defer to later phase)
 3. Ask human for input if architectural decision needed
+
+## Learned Patterns (from Phase 1-2)
+
+### Testing Patterns
+
+**Mock LLM responses with counter for iteration tests:**
+```typescript
+let callCount = 0;
+mockLLMClient.chat = vi.fn().mockImplementation(() => {
+  callCount++;
+  if (callCount === 1) return { content: 'First response...' };
+  if (callCount === 2) return { content: 'Second response...' };
+  return { content: 'Default response...' };
+});
+```
+
+**E2E tests need long timeouts:**
+```typescript
+it('should complete workflow', async () => {
+  // Real LLM calls take 20-160 seconds
+}, { timeout: 180000 });
+```
+
+### Code Patterns
+
+**Always guard regex match groups:**
+```typescript
+// BAD - match[1] can be undefined
+const value = match[1];
+
+// GOOD - guard against undefined
+if (match && match[1] && match[2]) {
+  const value = match[1];
+}
+```
+
+**Use callbacks for long-running workflows:**
+```typescript
+const team = new Team({
+  onProgress: (msg) => console.log(`[Progress] ${msg}`),
+  onEscalation: (reason) => console.log(`[Escalation] ${reason}`),
+});
+```
+
+**Always have iteration limits:**
+```typescript
+// Prevent infinite loops in retry/fix cycles
+maxIterations: 3,
+maxRetries: 2,
+```
+
+### LLM Integration Patterns
+
+**Parse tool calls flexibly:**
+- LLM output format varies - handle multiple formats
+- Use clear delimiters in prompts (`<tool_call>`, `DEV_TASKS:`, etc.)
+- Always have fallback for unparseable responses
+
+**Task planning with LLM:**
+- Provide clear structure in system prompt
+- Request specific output format
+- Parse with regex, not JSON (more flexible)
+
+### File Organization
+
+**Test file naming:**
+- Unit tests: `tests/unit/{component}.test.ts`
+- Integration: `tests/integration/{workflow}.test.ts`
+- E2E: `tests/e2e/{feature}-e2e.test.ts`
+
+**Source organization:**
+```
+src/agents/{type}/          # Agent implementations
+src/agents/{type}/index.ts  # Re-exports
+src/core/{system}/          # Core systems (tasks, llm, tools)
+src/team/                   # Team coordination
+```
+
+## Quick Commands
+
+```bash
+# Run everything
+npm test                    # All tests (unit + integration + e2e skipped)
+npm run typecheck           # Type checking
+
+# Run specific test suites
+npm run test:unit           # Unit tests only
+npm run test:int            # Integration tests only
+RUN_E2E_TESTS=true npm run test:e2e  # E2E with real API
+
+# Watch mode for development
+npm run test:watch
+
+# Before committing
+npm test && npm run lint && npm run typecheck
+```
