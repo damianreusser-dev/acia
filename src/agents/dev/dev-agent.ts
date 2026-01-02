@@ -31,6 +31,12 @@ Available tools allow you to:
 - Write files to create or update code
 - List directories to explore the project structure
 - Run code to test your implementation
+- Generate project scaffolds using templates (list_templates, generate_project, preview_template)
+
+For new projects:
+- Use list_templates to see available templates (react, express, fullstack)
+- Use generate_project to scaffold a project with proper structure
+- The fullstack template creates frontend/ and backend/ subdirectories
 
 Always respond with a clear summary of what you did or why you couldn't complete the task.`;
 

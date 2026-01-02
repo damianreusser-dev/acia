@@ -63,7 +63,9 @@ Always:
 - Wrap async handlers in try/catch or use asyncHandler
 - Log errors appropriately
 - Return consistent response structures
-- Never expose internal error details to clients`;
+- Never expose internal error details to clients
+
+For new projects, use the generate_project tool with template "express" to scaffold a complete Express+TypeScript API with Vitest tests.`;
 
 export interface BackendDevAgentConfig {
   name?: string;

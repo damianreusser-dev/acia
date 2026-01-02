@@ -43,7 +43,9 @@ Always:
 - Include TypeScript interfaces for props
 - Handle edge cases (loading, errors, empty data)
 - Keep components under 200 lines
-- Use meaningful variable and function names`;
+- Use meaningful variable and function names
+
+For new projects, use the generate_project tool with template "react" to scaffold a complete React+TypeScript project with Vite.`;
 
 export interface FrontendDevAgentConfig {
   name?: string;
