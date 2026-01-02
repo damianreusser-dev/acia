@@ -18,7 +18,7 @@ This roadmap defines the path from current state (Phase 5 in progress) to full a
 ✅ Phase 3:  Company Structure (Complete)
 ✅ Phase 4:  Production Hardening (Complete)
 🔄 Phase 5:  Fullstack Capability (In Progress)
-⬜ Phase 6:  Deployment & Operations
+⬜ Phase 6:  Coordination Refactor + Deployment & Operations
 ⬜ Phase 7:  Persona-Based QA & Validation
 ⬜ Phase 8:  Self-Improvement Pipeline
 ⬜ Phase 9:  Marketing & Growth Division
@@ -139,7 +139,122 @@ This roadmap defines the path from current state (Phase 5 in progress) to full a
 
 **Benchmark**: Deploy todo app to cloud, verify it runs, handle simulated incident.
 
-### 6a: DevOps Agent
+### 6a: Coordination Layer Refactoring (REQUIRED BEFORE MULTI-DIVISION)
+
+**Why**: The current architecture hardcodes Team to specific agent types. Adding new divisions (Ops, Marketing, Sales) will require duplicating ~575+ lines of coordination code per division unless we refactor first.
+
+**Problem Areas Identified**:
+| Issue | Location | Impact |
+|-------|----------|--------|
+| Team hardcodes agent imports | `src/team/team.ts:13-17` | Can't add new team types |
+| CEO only knows Team class | `src/agents/executive/ceo-agent.ts:12` | Can't manage multiple division types |
+| Tool filtering by string names | `src/team/team.ts:73-85` | Fragile, not extensible |
+| Dev agents duplicate instead of inherit | `frontend-dev-agent.ts`, `backend-dev-agent.ts` | 200+ lines duplicated |
+| Scaffold detection duplicated 3x | PM, Dev, CEO agents | Maintenance burden |
+
+**Refactoring Tasks**:
+
+#### 6a.1: Extract ITeam Interface
+```typescript
+// New: src/team/team-interface.ts
+interface ITeam {
+  executeTask(description: string, priority: Priority): Promise<WorkflowResult>;
+  getAgentRoles(): string[];
+  getName(): string;
+}
+```
+- [ ] Create ITeam interface
+- [ ] Team class implements ITeam
+- [ ] CEO works with ITeam (not concrete Team)
+- [ ] Tests: 5+ unit tests
+
+#### 6a.2: Create Team Factory
+```typescript
+// New: src/team/team-factory.ts
+class TeamFactory {
+  static create(type: 'tech' | 'ops' | 'marketing', config: TeamConfig): ITeam;
+}
+```
+- [ ] Create TeamFactory class
+- [ ] TechTeam as first implementation
+- [ ] Division type registration
+- [ ] Tests: 5+ unit tests
+
+#### 6a.3: Tool Permission System
+```typescript
+// Modify: src/core/tools/types.ts
+interface Tool {
+  definition: ToolDefinition;
+  roles?: AgentRole[]; // New: which roles can use this tool
+}
+
+type AgentRole = 'pm' | 'dev' | 'qa' | 'devops' | 'content' | 'seo' | 'support';
+```
+- [ ] Add roles to Tool interface
+- [ ] Filter tools by role instead of string matching
+- [ ] Backward compatible (roles optional)
+- [ ] Tests: 5+ unit tests
+
+#### 6a.4: Consolidate Dev Agent Inheritance
+```typescript
+// Modify: frontend-dev-agent.ts, backend-dev-agent.ts
+class FrontendDevAgent extends DevAgent {
+  // Only override system prompt
+  // Remove duplicated buildTaskPrompt, analyzeResponse, etc.
+}
+```
+- [ ] FrontendDevAgent extends DevAgent
+- [ ] BackendDevAgent extends DevAgent
+- [ ] Remove duplicated methods
+- [ ] Tests: Verify existing tests still pass
+
+#### 6a.5: Extract Shared Utilities
+```typescript
+// New: src/utils/scaffold-detector.ts
+function isScaffoldTask(text: string): boolean;
+function extractProjectName(text: string): string;
+
+// New: src/utils/response-parser.ts
+class ResponseParser {
+  parseSection(response: string, section: string): string;
+  parseList(response: string, section: string): string[];
+  parseKeyValue(response: string, pattern: RegExp): Record<string, string>;
+}
+```
+- [ ] Create scaffold-detector.ts
+- [ ] Create response-parser.ts
+- [ ] PM, Dev, CEO use shared utilities
+- [ ] Remove duplicated logic
+- [ ] Tests: 10+ unit tests
+
+**Phase 6a Success Criteria**:
+- [ ] CEO works with ITeam interface
+- [ ] TeamFactory can create TechTeam
+- [ ] Tools filtered by role, not string matching
+- [ ] Dev agent inheritance consolidated
+- [ ] No duplicated scaffold detection logic
+- [ ] All existing tests pass (no regressions)
+
+**Phase 6a New Files**:
+```
+src/team/
+  ├── team-interface.ts
+  └── team-factory.ts
+src/utils/
+  ├── scaffold-detector.ts
+  └── response-parser.ts
+tests/unit/
+  ├── team-interface.test.ts
+  ├── team-factory.test.ts
+  ├── scaffold-detector.test.ts
+  └── response-parser.test.ts
+```
+
+**Phase 6a Test Count**: ~30 new tests
+
+---
+
+### 6b: DevOps Agent
 
 **New**: `src/agents/devops/devops-agent.ts`
 
@@ -159,7 +274,7 @@ class DevOpsAgent extends Agent {
 - [ ] Cloud deployment patterns
 - [ ] Tests: 20+ unit tests
 
-### 6b: Docker Tools
+### 6c: Docker Tools
 
 **New**: `src/core/tools/docker-tools.ts`
 
@@ -180,7 +295,7 @@ const dockerTools = [
 - [ ] Security: no privileged mode, resource limits
 - [ ] Tests: 15+ unit tests
 
-### 6c: Cloud Deployment Tools
+### 6d: Cloud Deployment Tools
 
 **New**: `src/core/tools/deploy-tools.ts`
 
@@ -202,7 +317,7 @@ const deployTools = [
 - [ ] Rollback capability
 - [ ] Tests: 15+ unit tests
 
-### 6d: Monitoring Agent
+### 6e: Monitoring Agent
 
 **New**: `src/agents/ops/monitoring-agent.ts`
 
@@ -222,7 +337,7 @@ class MonitoringAgent extends Agent {
 - [ ] Alert generation
 - [ ] Tests: 15+ unit tests
 
-### 6e: Incident Agent
+### 6f: Incident Agent
 
 **New**: `src/agents/ops/incident-agent.ts`
 
@@ -242,7 +357,7 @@ class IncidentAgent extends Agent {
 - [ ] Post-incident logging
 - [ ] Tests: 15+ unit tests
 
-### 6f: Ops Division Integration
+### 6g: Ops Division Integration
 
 **Modify**: `src/company/divisions/ops-division.ts`
 
@@ -282,7 +397,9 @@ tests/integration/
   └── ops-division.test.ts
 ```
 
-### Phase 6 Test Count: ~90 new tests
+### Phase 6 Test Count: ~120 new tests
+- 6a (Coordination Refactor): ~30 tests
+- 6b-6g (Ops Division): ~90 tests
 
 ---
 
@@ -847,15 +964,15 @@ enum NotificationType {
 |-------|-----------|---------------|
 | 1-4 (Complete) | - | 372 |
 | 5 (In Progress) | ~120 | ~492 |
-| 6 | ~90 | ~582 |
-| 7 | ~90 | ~672 |
-| 8 | ~110 | ~782 |
-| 9 | ~80 | ~862 |
-| 10 | ~70 | ~932 |
-| 11 | ~60 | ~992 |
-| 12 | ~80 | ~1072 |
+| 6 | ~120 | ~612 |
+| 7 | ~90 | ~702 |
+| 8 | ~110 | ~812 |
+| 9 | ~80 | ~892 |
+| 10 | ~70 | ~962 |
+| 11 | ~60 | ~1022 |
+| 12 | ~80 | ~1102 |
 
-**Target**: 1000+ tests for full system
+**Target**: 1100+ tests for full system
 
 ---
 

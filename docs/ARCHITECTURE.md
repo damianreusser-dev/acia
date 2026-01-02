@@ -444,7 +444,7 @@ tests/
 
 ```
 Phase 5  (Current)   → Fullstack apps from prompt
-Phase 6  (Next)      → Deploy & monitor in production
+Phase 6  (Next)      → Coordination refactor (6a) + Deploy & monitor (6b-g)
 Phase 7              → Persona-based QA, oracle testing
 Phase 8              → Self-improvement pipeline
 Phase 9              → Marketing division
