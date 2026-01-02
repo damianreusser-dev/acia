@@ -17,9 +17,9 @@ import { WikiService } from '../../src/core/wiki/wiki-service.js';
 import { createFileTools } from '../../src/core/tools/file-tools.js';
 import { createExecTools } from '../../src/core/tools/exec-tools.js';
 
-// Check if E2E tests should run
-const shouldRunE2E = process.env.RUN_E2E_TESTS === 'true' && !!process.env.ANTHROPIC_API_KEY;
-const describeE2E = shouldRunE2E ? describe : describe.skip;
+// E2E tests run when RUN_E2E_TESTS=true
+// API key is loaded from .env by tests/setup.ts
+const describeE2E = describe.runIf(process.env.RUN_E2E_TESTS === 'true');
 
 describeE2E('Jarvis Full Flow E2E (Real LLM)', () => {
   let testWorkspace: string;
@@ -30,8 +30,11 @@ describeE2E('Jarvis Full Flow E2E (Real LLM)', () => {
   let logs: string[] = [];
 
   beforeAll(() => {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error('ANTHROPIC_API_KEY not set. Check your .env file.');
+    }
     llmClient = new LLMClient({
-      apiKey: process.env.ANTHROPIC_API_KEY!,
+      apiKey: process.env.ANTHROPIC_API_KEY,
       model: 'claude-sonnet-4-20250514',
       maxTokens: 4096,
     });

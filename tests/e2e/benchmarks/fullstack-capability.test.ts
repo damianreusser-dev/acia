@@ -14,9 +14,9 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { spawn, ChildProcess } from 'child_process';
 
-// Skip if not running E2E tests
-const runE2E = process.env.RUN_E2E_TESTS === 'true';
-const describeE2E = runE2E ? describe : describe.skip;
+// E2E tests run when RUN_E2E_TESTS=true
+// API key is loaded from .env by tests/setup.ts
+const describeE2E = describe.runIf(process.env.RUN_E2E_TESTS === 'true');
 
 // Test workspace
 const BENCHMARK_WORKSPACE = path.join(process.cwd(), 'test-workspaces', 'benchmark-fullstack');
