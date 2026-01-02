@@ -14,6 +14,7 @@ import { WikiService } from '../../core/wiki/wiki-service.js';
 import { createFileTools } from '../../core/tools/file-tools.js';
 import { createExecTools } from '../../core/tools/exec-tools.js';
 import { createGitTools } from '../../core/tools/git-tools.js';
+import { createTemplateTools } from '../../core/tools/template-tools.js';
 import { getMetrics as getGlobalMetrics } from '../../core/metrics/metrics.js';
 
 const JARVIS_SYSTEM_PROMPT = `You are JARVIS, the universal AI assistant and entry point for the ACIA (Autonomous Company Intelligence Architecture) system.
@@ -113,7 +114,8 @@ export class JarvisAgent extends Agent {
       const fileTools = createFileTools(workspace);
       const execTools = createExecTools(workspace, ['test', 'build', 'typecheck', 'dev', 'lint']);
       const gitTools = createGitTools(workspace);
-      tools = [...fileTools, ...execTools, ...gitTools];
+      const templateTools = createTemplateTools(workspace);
+      tools = [...fileTools, ...execTools, ...gitTools, ...templateTools];
     }
 
     const agentConfig: AgentConfig = {
