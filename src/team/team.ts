@@ -4,6 +4,7 @@
  * Coordinates work between PM, Dev, and QA agents.
  * Manages the workflow of task planning, execution, and verification.
  * Supports Dev → QA → Fix iteration loops with escalation.
+ * Optionally integrates with Wiki for persistent knowledge.
  */
 
 import { LLMClient } from '../core/llm/client.js';
@@ -12,11 +13,14 @@ import { Task, TaskResult, createTask } from '../core/tasks/types.js';
 import { DevAgent } from '../agents/dev/dev-agent.js';
 import { QAAgent } from '../agents/qa/qa-agent.js';
 import { PMAgent, TaskBreakdown } from '../agents/pm/pm-agent.js';
+import { WikiService } from '../core/wiki/wiki-service.js';
+import { createWikiTools } from '../core/wiki/wiki-tools.js';
 
 export interface TeamConfig {
   workspace: string;
   llmClient: LLMClient;
   tools: Tool[];
+  wikiService?: WikiService; // Optional wiki for persistent knowledge
   maxRetries?: number;
   maxIterations?: number;
   onEscalation?: (reason: string, task: Task) => void;
@@ -39,22 +43,37 @@ export class Team {
   private devAgent: DevAgent;
   private qaAgent: QAAgent;
   private workspace: string;
+  private wikiService?: WikiService;
   private maxIterations: number;
   private onEscalation?: (reason: string, task: Task) => void;
   private onProgress?: (message: string, task?: Task) => void;
 
   constructor(config: TeamConfig) {
     this.workspace = config.workspace;
+    this.wikiService = config.wikiService;
     this.maxIterations = config.maxIterations ?? 3;
     this.onEscalation = config.onEscalation;
     this.onProgress = config.onProgress;
 
-    // Create PM Agent with read-only tools (for planning)
-    const pmTools = config.tools.filter(
-      (t) =>
-        t.definition.name === 'read_file' ||
-        t.definition.name === 'list_directory'
-    );
+    // Create wiki tools if wiki service is provided
+    const wikiTools = config.wikiService
+      ? createWikiTools(config.wikiService)
+      : [];
+
+    // Create PM Agent with read-only tools + wiki tools (for planning with context)
+    const pmTools = [
+      ...config.tools.filter(
+        (t) =>
+          t.definition.name === 'read_file' ||
+          t.definition.name === 'list_directory'
+      ),
+      ...wikiTools.filter(
+        (t) =>
+          t.definition.name === 'read_wiki' ||
+          t.definition.name === 'search_wiki' ||
+          t.definition.name === 'list_wiki'
+      ),
+    ];
 
     this.pmAgent = new PMAgent({
       llmClient: config.llmClient,
@@ -63,17 +82,17 @@ export class Team {
       maxRetries: config.maxRetries,
     });
 
-    // Create Dev Agent with all tools
+    // Create Dev Agent with all tools + wiki tools
     this.devAgent = new DevAgent({
       llmClient: config.llmClient,
-      tools: config.tools,
+      tools: [...config.tools, ...wikiTools],
       workspace: config.workspace,
     });
 
-    // Create QA Agent with all tools
+    // Create QA Agent with all tools + wiki tools
     this.qaAgent = new QAAgent({
       llmClient: config.llmClient,
-      tools: config.tools,
+      tools: [...config.tools, ...wikiTools],
       workspace: config.workspace,
     });
   }
@@ -387,5 +406,40 @@ export class Team {
    */
   getMaxIterations(): number {
     return this.maxIterations;
+  }
+
+  /**
+   * Get wiki service if available
+   */
+  getWikiService(): WikiService | undefined {
+    return this.wikiService;
+  }
+
+  /**
+   * Log completed task to wiki (for learnings and history)
+   */
+  async logTaskCompletion(result: WorkflowResult): Promise<void> {
+    if (!this.wikiService) return;
+
+    const timestamp = new Date().toISOString();
+    const content = `
+## ${result.task.title}
+
+**Status**: ${result.success ? 'Success' : 'Failed'}
+**Completed**: ${timestamp}
+**Iterations**: ${result.iterations}
+**Escalated**: ${result.escalated}
+${result.escalationReason ? `**Escalation Reason**: ${result.escalationReason}` : ''}
+
+### Dev Tasks
+${result.devResults.map((d) => `- ${d.task.title}: ${d.result.success ? '✅' : '❌'}`).join('\n')}
+
+### QA Tasks
+${result.qaResults.map((q) => `- ${q.task.title}: ${q.result.success ? '✅' : '❌'}`).join('\n')}
+
+---
+`;
+
+    await this.wikiService.appendToPage('tasks/completed/log.md', content);
   }
 }

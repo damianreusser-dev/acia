@@ -2,7 +2,7 @@
 
 **Last Updated**: 2026-01-02
 
-## Current Phase: 2 - Basic Team (COMPLETED)
+## Current Phase: 3 - Enhanced Capabilities (IN PROGRESS)
 
 ### Phase 1 - COMPLETED
 
@@ -62,13 +62,30 @@
 - [x] E2E tests with real Anthropic API
 - [x] **Total: 122 tests passing (+ 2 E2E when API key set)**
 
-### Phase 3 - Enhanced Capabilities (Next)
-- [ ] Wiki/Memory system for persistent knowledge
-- [ ] Improved task decomposition with LLM
+### Phase 3 - Enhanced Capabilities (IN PROGRESS)
+
+#### Phase 3a - Wiki/Memory System (COMPLETED)
+- [x] WikiService with CRUD operations
+- [x] Wiki page read, write, append, delete
+- [x] Directory listing and search
+- [x] Sandbox security (path traversal prevention)
+- [x] Wiki Tools for agents (read_wiki, write_wiki, append_wiki, search_wiki, list_wiki)
+- [x] Team integration with optional WikiService
+- [x] PM gets read-only wiki tools (read, search, list)
+- [x] Dev/QA get full wiki tools
+- [x] Task completion logging to wiki
+- [x] **46 new tests (27 WikiService + 15 WikiTools + 4 integration)**
+
+#### Phase 3b - Design-First Development (Next)
+- [ ] Design doc creation before implementation
+- [ ] PM creates design doc in wiki
+- [ ] Dev implements against design doc
+- [ ] QA tests against design doc
+
+#### Phase 3c - Company Structure
 - [ ] CEO agent for higher-level orchestration
 - [ ] Jarvis agent as universal entry point
 - [ ] Communication channels between agents
-- [ ] Self-improvement capability
 
 ### Blocked
 None
@@ -76,6 +93,14 @@ None
 ---
 
 ## Recent Changes
+
+### 2026-01-02 (Phase 3a - Wiki System)
+- Added WikiService with full CRUD + search
+- Wiki tools for agents (read, write, append, search, list)
+- Team integration with optional wiki support
+- PM gets read-only wiki access, Dev/QA get full access
+- Task completion logging to wiki
+- 46 new tests, total now 168
 
 ### 2026-01-02 (E2E Tests)
 - Added E2E test suite for real LLM validation
@@ -134,6 +159,9 @@ None
 | 2026-01-02 | PM read-only, Dev/QA full tools | PM plans, workers execute |
 | 2026-01-02 | Iteration loop with fix tasks | QA failures create dev fix tasks automatically |
 | 2026-01-02 | Callbacks for escalation/progress | Allow external systems to react to workflow events |
+| 2026-01-02 | File-based wiki (Markdown) | Human-readable, git-trackable, simple |
+| 2026-01-02 | PM read-only wiki, Dev/QA full | PM plans with context, workers document |
+| 2026-01-02 | Wiki optional in Team | Backward compatible, gradual adoption |
 
 ---
 
@@ -149,10 +177,10 @@ None
 | Metric | Target | Current |
 |--------|--------|---------|
 | Test Coverage | >80% | TBD |
-| Unit Tests | All pass | 112/112 |
-| Integration Tests | All pass | 9/9 |
+| Unit Tests | All pass | 154/154 |
+| Integration Tests | All pass | 13/13 |
 | E2E Tests | All pass | 2/2 (when API key set) |
-| Total Tests | All pass | 122/122 (+ 2 E2E) |
+| Total Tests | All pass | 168 (+2 E2E) |
 | CI Status | Passing | Passing |
 
 ---
