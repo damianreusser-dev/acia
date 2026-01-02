@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { CEOAgent, CEOAgentConfig, Project } from '../../src/agents/executive/ceo-agent.js';
+import { CEOAgent } from '../../src/agents/executive/ceo-agent.js';
 import { LLMClient } from '../../src/core/llm/client.js';
 import { Team, WorkflowResult } from '../../src/team/team.js';
 import { WikiService } from '../../src/core/wiki/wiki-service.js';

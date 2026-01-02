@@ -2,7 +2,7 @@
 
 **Last Updated**: 2026-01-02
 
-## Current Phase: 4 - Production Hardening (COMPLETED)
+## Current Phase: 5 - Fullstack Capability (IN PROGRESS)
 
 ### Phase 1 - COMPLETED
 
@@ -97,7 +97,7 @@
 - [x] Human escalation callbacks
 - [x] **84 new tests (19 CEO + 22 Jarvis + 43 Channel)**
 
-### Phase 4 - Production Hardening (IN PROGRESS)
+### Phase 4 - Production Hardening (COMPLETED)
 
 #### Phase 4a - Security Hardening (COMPLETED)
 - [x] Shell injection prevention (shell: false on Unix, pre-validated on Windows)
@@ -131,12 +131,81 @@
 - [x] Timed logging for operations
 - [x] **44 new tests (23 logging + 21 metrics)**
 
+### Phase 5 - Fullstack Capability (IN PROGRESS)
+
+**Goal**: ACIA can create complete fullstack applications from a single prompt.
+
+**Benchmark**: `tests/e2e/benchmarks/fullstack-capability.test.ts`
+
+#### Phase 5a - Architecture Foundation (IN PROGRESS)
+- [x] ArchitectAgent for system design and API contracts
+- [x] SystemDesign interface with overview, file structure, API contracts, data models
+- [x] ApiContract interface for endpoint definitions
+- [x] CommunicationConfig for protocol, ports, CORS settings
+- [x] TechStackChoice for technology decisions
+- [x] Wiki integration for design documents
+- [x] **26 new tests (ArchitectAgent)**
+- [x] GitTools for version control operations
+- [x] git_init, git_add, git_commit, git_status, git_branch, git_log tools
+- [x] Security: path validation, message sanitization, shell: false
+- [x] **34 new tests (GitTools)**
+- [ ] Specialized DevAgents (FrontendDevAgent, BackendDevAgent)
+- [ ] Project templates (React, Express, Fullstack)
+- [ ] Multi-team coordination in CEO
+
+#### Phase 5b - Git Integration (COMPLETED)
+- [x] GitInitTool - Initialize git repositories
+- [x] GitAddTool - Stage files for commit
+- [x] GitCommitTool - Commit with sanitized messages
+- [x] GitStatusTool - Repository status
+- [x] GitBranchTool - List, create, switch branches
+- [x] GitLogTool - Commit history
+- [x] createGitTools() factory function
+- [x] Path traversal prevention
+- [x] Shell injection prevention via sanitization
+
+**Success Criteria**:
+- [ ] Benchmark test passes (todo app with React + Express)
+- [ ] All generated code compiles
+- [ ] All generated tests pass
+- [ ] API endpoints work correctly
+
 ### Blocked
 None
 
 ---
 
 ## Recent Changes
+
+### 2026-01-02 (Phase 5a - Architecture Foundation)
+- Added ArchitectAgent for system design
+  - Creates comprehensive SystemDesign documents
+  - Parses API contracts from LLM response
+  - Extracts data models (TypeScript interfaces)
+  - Generates file structure plans
+  - Identifies technology stack choices
+  - Writes designs to wiki when available
+- Added GitTools for version control
+  - GitInitTool: Initialize repositories
+  - GitAddTool: Stage files
+  - GitCommitTool: Commit with message sanitization
+  - GitStatusTool: Check repository status
+  - GitBranchTool: List, create, switch branches
+  - GitLogTool: View commit history
+  - createGitTools() factory function
+- Security hardening for git operations
+  - Path traversal prevention
+  - Commit message sanitization (removes shell chars)
+  - shell: false for all spawn calls
+- Created vision and roadmap documents
+  - docs/VISION.md - Autonomous AI factory vision
+  - docs/ROADMAP.md - Phase 5-8 implementation plan
+  - docs/COORDINATION.md - Multi-team coordination strategy
+- Added benchmark tests for fullstack capability
+  - tests/e2e/benchmarks/fullstack-capability.test.ts
+  - Defines success criteria for Phase 5
+- Added 60 new tests (26 ArchitectAgent + 34 GitTools)
+- **Total: 413 tests (+ 7 E2E when API key set)**
 
 ### 2026-01-02 (Phase 4b/4c - Performance & Observability)
 - Added structured logging infrastructure
@@ -311,6 +380,9 @@ None
 | 2026-01-02 | Structured JSON logging | Human-readable and machine-parseable logs |
 | 2026-01-02 | Correlation IDs | Request tracing across async operations |
 | 2026-01-02 | Metrics collector singleton | Centralized performance tracking |
+| 2026-01-02 | ArchitectAgent for design | Create system design before implementation |
+| 2026-01-02 | Contract-First Development | Define API contracts for parallel team work |
+| 2026-01-02 | GitTools sandboxed | Version control with security (no remote ops) |
 
 ---
 
@@ -326,15 +398,18 @@ None
 | Metric | Target | Current |
 |--------|--------|---------|
 | Test Coverage | >80% | TBD |
-| Unit Tests | All pass | 354/354 |
+| Unit Tests | All pass | 388/388 |
 | Integration Tests | All pass | 17/17 |
 | E2E Tests | All pass | 7/7 (when API key set) |
+| Benchmark Tests | - | 8 (Phase 5 target) |
 | Security Tests | All pass | 24/24 |
 | Memory Tests | All pass | 9/9 |
 | Cache Tests | All pass | 29/29 |
 | Logging Tests | All pass | 23/23 |
 | Metrics Tests | All pass | 21/21 |
-| Total Tests | All pass | 372 (+7 E2E) |
+| ArchitectAgent Tests | All pass | 26/26 |
+| GitTools Tests | All pass | 34/34 |
+| Total Tests | All pass | 413 (+7 E2E) |
 | CI Status | Passing | Passing |
 
 ---

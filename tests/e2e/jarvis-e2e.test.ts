@@ -54,7 +54,7 @@ describeE2E('Jarvis Full Flow E2E (Real LLM)', () => {
       wikiService,
     });
 
-    jarvis.setHumanEscalationHandler((reason, context) => {
+    jarvis.setHumanEscalationHandler((reason, _context) => {
       logs.push(`[ESCALATION] ${reason}`);
       console.log(`[Human Escalation] ${reason}`);
     });

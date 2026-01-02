@@ -2,7 +2,7 @@
  * Logger Tests
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   Logger,
   LogEntry,

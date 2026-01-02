@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Channel, ChannelManager, Message } from '../../src/core/messaging/channel.js';
+import { Channel, ChannelManager } from '../../src/core/messaging/channel.js';
 
 describe('Channel', () => {
   let channel: Channel;

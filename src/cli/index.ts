@@ -63,7 +63,7 @@ async function main(): Promise<void> {
     }
     wikiService = new WikiService({ wikiRoot });
     await wikiService.initialize();
-  } catch (error) {
+  } catch {
     console.warn('Warning: Could not initialize wiki service');
   }
 
