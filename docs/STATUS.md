@@ -173,6 +173,15 @@
 - [x] Path traversal prevention
 - [x] Shell injection prevention via sanitization
 
+#### Phase 5d - Benchmark Infrastructure (COMPLETED)
+- [x] Workspace-based JarvisAgent initialization
+- [x] Auto-creation of tools from workspace path
+- [x] CEO → Team wiring on company creation
+- [x] Automatic frontend/backend teams for fullstack domains
+- [x] getMetrics() for token and request tracking
+- [x] getWorkspace() accessor
+- [x] **5 new tests (workspace mode, metrics tracking)**
+
 **Success Criteria**:
 - [ ] Benchmark test passes (todo app with React + Express)
 - [ ] All generated code compiles
@@ -185,6 +194,18 @@ None
 ---
 
 ## Recent Changes
+
+### 2026-01-02 (Phase 5d - Benchmark Infrastructure)
+- Enhanced JarvisAgent for benchmark testing
+  - Workspace-based initialization (auto-creates tools)
+  - Auto-wires CEO with Teams on company creation
+  - Creates frontend/backend teams for fullstack domains
+  - getMetrics() for token usage and request tracking
+- Improved company creation flow
+  - Default team always created
+  - Specialized teams for web/fullstack/application domains
+- Added 5 new tests for workspace and metrics functionality
+- **Total: 500 tests (+8 E2E when API key set)**
 
 ### 2026-01-02 (Phase 5c - Specialized Agents & Templates)
 - Added FrontendDevAgent (React/TypeScript specialist)
@@ -450,7 +471,8 @@ None
 | Templates Tests | All pass | 18/18 |
 | Team Selection Tests | All pass | 10/10 |
 | CEO Multi-Team Tests | All pass | 6/6 |
-| Total Tests | All pass | 495 (+8 E2E) |
+| Jarvis Workspace Tests | All pass | 5/5 |
+| Total Tests | All pass | 500 (+8 E2E) |
 | CI Status | Passing | Passing |
 
 ---
