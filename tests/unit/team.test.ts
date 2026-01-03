@@ -7,16 +7,32 @@ import { Team } from '../../src/team/team.js';
 import { LLMClient } from '../../src/core/llm/client.js';
 import { Tool } from '../../src/core/tools/types.js';
 
-// Mock LLMClient
+// Mock LLMClient with tool call simulation
+// DevAgent now requires actual tool calls or it will retry
 vi.mock('../../src/core/llm/client.js', () => {
   return {
-    LLMClient: vi.fn().mockImplementation(() => ({
-      chat: vi.fn().mockResolvedValue({
-        content: 'Mock response',
-        stopReason: 'end_turn',
-        usage: { inputTokens: 10, outputTokens: 20 },
-      }),
-    })),
+    LLMClient: vi.fn().mockImplementation(() => {
+      let callCount = 0;
+      return {
+        chat: vi.fn().mockImplementation(() => {
+          callCount++;
+          // Alternate between tool calls and completions
+          // This satisfies the DevAgent's tool call verification
+          if (callCount % 2 === 1) {
+            return Promise.resolve({
+              content: '<tool_call>{"tool": "write_file", "params": {"path": "src/file.ts", "content": "code"}}</tool_call>',
+              stopReason: 'end_turn',
+              usage: { inputTokens: 10, outputTokens: 20 },
+            });
+          }
+          return Promise.resolve({
+            content: 'Task completed successfully. Wrote to src/file.ts.',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
+        }),
+      };
+    }),
   };
 });
 
@@ -148,14 +164,14 @@ describe('Team', () => {
       expect(team.getMaxIterations()).toBe(5);
     });
 
-    it('should default maxIterations to 3', () => {
+    it('should default maxIterations to 5', () => {
       const team = new Team({
         workspace: '/test/workspace',
         llmClient: mockLLMClient,
         tools: mockTools,
       });
 
-      expect(team.getMaxIterations()).toBe(3);
+      expect(team.getMaxIterations()).toBe(5);
     });
   });
 
@@ -184,27 +200,40 @@ EXECUTION_ORDER:
 1. DEV:1
 2. QA:1`;
 
-      // Mock responses for the workflow
-      const mockChat = vi
-        .fn()
-        // PM planning
-        .mockResolvedValueOnce({
-          content: planResponse,
-          stopReason: 'end_turn',
-          usage: { inputTokens: 10, outputTokens: 20 },
-        })
-        // Dev execution - must include tool usage evidence
-        .mockResolvedValueOnce({
-          content: 'Successfully created the module. Wrote to src/module.ts with the implementation.',
-          stopReason: 'end_turn',
-          usage: { inputTokens: 10, outputTokens: 20 },
-        })
-        // QA execution - must include tool usage evidence
-        .mockResolvedValueOnce({
-          content: 'All tests passed. 3 pass, 0 fail. Wrote to test-results.json.',
-          stopReason: 'end_turn',
-          usage: { inputTokens: 10, outputTokens: 20 },
-        });
+      // Mock responses for the workflow (now with tool call support)
+      let callCount = 0;
+      const mockChat = vi.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          // PM planning
+          return Promise.resolve({
+            content: planResponse,
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
+        } else if (callCount === 2) {
+          // Dev tool call
+          return Promise.resolve({
+            content: '<tool_call>{"tool": "write_file", "params": {"path": "src/module.ts", "content": "code"}}</tool_call>',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
+        } else if (callCount === 3) {
+          // Dev completion
+          return Promise.resolve({
+            content: 'Successfully created the module. Wrote to src/module.ts with the implementation.',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
+        } else {
+          // QA and any other calls
+          return Promise.resolve({
+            content: 'All tests passed. 3 pass, 0 fail. Wrote to test-results.json.',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
+        }
+      });
 
       const customMockClient = { chat: mockChat } as unknown as LLMClient;
 
@@ -244,12 +273,15 @@ EXECUTION_ORDER:
     });
 
     it('should handle dev task failure and retry', async () => {
-      // Mock responses: plan, dev fail, PM analyze, dev retry success, QA pass
-      const mockChat = vi
-        .fn()
-        // PM planning
-        .mockResolvedValueOnce({
-          content: `DEV_TASKS:
+      // Mock responses: plan, dev fail (with tool call), PM analyze, dev retry success, QA pass
+      // Now DevAgent requires tool calls, so we need to include tool calls in dev responses
+      let callCount = 0;
+      const mockChat = vi.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          // PM planning
+          return Promise.resolve({
+            content: `DEV_TASKS:
 1. [Create module] - Create the module
 
 QA_TASKS:
@@ -258,33 +290,53 @@ QA_TASKS:
 EXECUTION_ORDER:
 1. DEV:1
 2. QA:1`,
-          stopReason: 'end_turn',
-          usage: { inputTokens: 10, outputTokens: 20 },
-        })
-        // Dev first attempt - fails
-        .mockResolvedValueOnce({
-          content: 'Failed to write file: syntax error',
-          stopReason: 'end_turn',
-          usage: { inputTokens: 10, outputTokens: 20 },
-        })
-        // PM analyzes failure
-        .mockResolvedValueOnce({
-          content: 'Please fix the syntax error and try again.',
-          stopReason: 'end_turn',
-          usage: { inputTokens: 10, outputTokens: 20 },
-        })
-        // Dev retry - succeeds (with tool usage evidence)
-        .mockResolvedValueOnce({
-          content: 'Successfully created the module. Wrote to src/module.ts.',
-          stopReason: 'end_turn',
-          usage: { inputTokens: 10, outputTokens: 20 },
-        })
-        // QA passes (with tool usage evidence)
-        .mockResolvedValueOnce({
-          content: 'All tests passed. Wrote to test-results.json.',
-          stopReason: 'end_turn',
-          usage: { inputTokens: 10, outputTokens: 20 },
-        });
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
+        } else if (callCount === 2) {
+          // Dev tool call (attempt 1)
+          return Promise.resolve({
+            content: '<tool_call>{"tool": "write_file", "params": {"path": "src/module.ts", "content": "code"}}</tool_call>',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
+        } else if (callCount === 3) {
+          // Dev completion (attempt 1) - fails
+          return Promise.resolve({
+            content: 'Failed to write file: syntax error',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
+        } else if (callCount === 4) {
+          // PM analyzes failure
+          return Promise.resolve({
+            content: 'Please fix the syntax error and try again.',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
+        } else if (callCount === 5) {
+          // Dev tool call (attempt 2)
+          return Promise.resolve({
+            content: '<tool_call>{"tool": "write_file", "params": {"path": "src/module.ts", "content": "fixed code"}}</tool_call>',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
+        } else if (callCount === 6) {
+          // Dev completion (attempt 2) - succeeds
+          return Promise.resolve({
+            content: 'Successfully created the module. Wrote to src/module.ts.',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
+        } else {
+          // QA and any other calls
+          return Promise.resolve({
+            content: 'All tests passed. Wrote to test-results.json.',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
+        }
+      });
 
       const customMockClient = { chat: mockChat } as unknown as LLMClient;
 
@@ -705,16 +757,24 @@ EXECUTION_ORDER:
             usage: { inputTokens: 10, outputTokens: 20 },
           };
         }
-        // Alternate: Dev succeeds, QA fails (to trigger iteration loop)
-        if (callCount % 2 === 0) {
-          // Dev responses - contain success indicator AND tool usage evidence
+        // Dev needs tool calls now. Cycle: tool_call -> completion -> QA fail
+        const responseNum = (callCount - 1) % 3;
+        if (responseNum === 0) {
+          // Dev tool call
+          return {
+            content: '<tool_call>{"tool": "write_file", "params": {"path": "src/file.ts", "content": "code"}}</tool_call>',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          };
+        } else if (responseNum === 1) {
+          // Dev completion
           return {
             content: 'Feature created successfully. Wrote to src/feature.ts with implementation.',
             stopReason: 'end_turn',
             usage: { inputTokens: 10, outputTokens: 20 },
           };
         } else {
-          // QA responses - failure to trigger next iteration
+          // QA failure to trigger next iteration
           return {
             content: 'Test failed - feature not working correctly',
             stopReason: 'end_turn',

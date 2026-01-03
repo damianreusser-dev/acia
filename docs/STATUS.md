@@ -241,6 +241,19 @@
   - Tells agents to read template first before modifying
 - [x] **Updated 3 unit tests for new behavior**
 
+#### Phase 5j - Tool Call Enforcement (COMPLETED)
+- [x] Tool call tracking in base Agent (`ToolCallMetrics` interface)
+- [x] `verifyToolCalls()` in DevAgent - validates required tool calls per task type
+- [x] Retry loop (MAX_TASK_RETRIES=3) for insufficient tool calls
+- [x] Enhanced prompts with BACKEND/FRONTEND checklists
+- [x] `analyzeResponse()` trusts tool metrics (if successful tool calls, mark success)
+- [x] PM `detectAgentType()` detects backend/frontend from task description
+- [x] PM fallback tasks now include `context: { agentType }` for proper prompting
+- [x] Diagnostic tests (D1, D2, D3) all pass with OpenAI
+  - D1: Template Output - 9/9 passing
+  - D2: DevAgent Template Tools - 4/4 passing (was failing)
+  - D3: Team Scaffold Flow - 4/4 passing
+
 **Success Criteria**:
 - [ ] Benchmark test passes (todo app with React + Express)
 - [ ] All generated code compiles
@@ -261,6 +274,27 @@ None
 ---
 
 ## Recent Changes
+
+### 2026-01-03 (Phase 5j - Tool Call Enforcement)
+- Added tool call tracking to base Agent
+  - `ToolCallMetrics` interface tracks total, byTool, successful, failed counts
+  - `getToolCallMetrics()` and `resetToolCallMetrics()` methods
+- DevAgent retry loop for insufficient tool calls
+  - `verifyToolCalls()` validates required tools per task type
+  - Scaffold tasks require `generate_project`
+  - Customize tasks require `write_file`
+  - MAX_TASK_RETRIES=3 with progressive retry prompts
+- Enhanced `analyzeResponse()` to trust tool metrics
+  - If `metrics.successful > 0` and no hard failures → success
+  - Fixes scaffold tasks that create files but were marked as failed
+- PM `detectAgentType()` for proper checklist prompting
+  - Detects backend/frontend from task description keywords
+  - Fallback customize tasks now include `context: { agentType }`
+- Diagnostic tests all pass with OpenAI
+  - D1 (Template Output): 9/9 ✓
+  - D2 (DevAgent Template Tools): 4/4 ✓ (was failing)
+  - D3 (Team Scaffold Flow): 4/4 ✓
+- **Total: 502 unit tests (+17 E2E diagnostic tests when API key set)**
 
 ### 2026-01-02 (Phase 5i - Agent Customization Fixes)
 - Fixed Express template health endpoint path
@@ -565,6 +599,10 @@ None
 | 2026-01-02 | GitTools sandboxed | Version control with security (no remote ops) |
 | 2026-01-02 | Dev agent default to failure | Require explicit success indicators to prevent false positives |
 | 2026-01-02 | Structured customize tasks | PM extracts specific requirements for agent customization |
+| 2026-01-03 | Tool call tracking | Verify agents execute tools instead of just describing actions |
+| 2026-01-03 | Retry loop for tool calls | Give agents multiple attempts to call required tools |
+| 2026-01-03 | Trust tool metrics | If tools succeeded, mark task as success (overrides text analysis) |
+| 2026-01-03 | agentType context | PM detects and passes agent type for proper checklist prompting |
 
 ---
 
@@ -580,10 +618,11 @@ None
 | Metric | Target | Current |
 |--------|--------|---------|
 | Test Coverage | >80% | TBD |
-| Unit Tests | All pass | 470/470 |
+| Unit Tests | All pass | 502/502 |
 | Integration Tests | All pass | 17/17 |
 | E2E Tests | All pass | 8/8 (when API key set) |
-| Benchmark Tests | - | 8 (Phase 5 target) |
+| Diagnostic Tests (D1-D3) | All pass | 17/17 (when API key set) |
+| Benchmark Tests | - | 6 (Phase 5 target) |
 | Security Tests | All pass | 24/24 |
 | Memory Tests | All pass | 9/9 |
 | Cache Tests | All pass | 29/29 |
@@ -597,7 +636,7 @@ None
 | CEO Multi-Team Tests | All pass | 6/6 |
 | Jarvis Workspace Tests | All pass | 5/5 |
 | Template Tools Tests | All pass | 11/11 |
-| Total Tests | All pass | 520 (+14 E2E) |
+| Total Tests | All pass | 502 (+25 E2E) |
 | CI Status | Passing | Passing |
 
 ---

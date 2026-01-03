@@ -67,8 +67,20 @@ export interface DevAgentConfig {
   workspace: string;
 }
 
+/**
+ * Result of tool call verification
+ */
+interface ToolCallVerification {
+  sufficient: boolean;
+  reason?: string;
+  required?: string[];
+}
+
 export class DevAgent extends Agent {
   private workspace: string;
+
+  /** Maximum number of retry attempts when insufficient tool calls are made */
+  private static readonly MAX_TASK_RETRIES = 3;
 
   constructor(config: DevAgentConfig) {
     const agentConfig: AgentConfig = {
@@ -83,35 +95,85 @@ export class DevAgent extends Agent {
   }
 
   /**
-   * Execute a development task
+   * Execute a development task with retry loop for insufficient tool calls.
+   * Agents that describe what they would do instead of actually doing it
+   * will be retried with stronger instructions.
    */
   async executeTask(task: Task): Promise<TaskResult> {
-    const prompt = this.buildTaskPrompt(task);
+    let lastResponse = '';
+    let lastVerification: ToolCallVerification = { sufficient: true };
 
-    try {
-      const response = await this.processMessageWithTools(prompt);
+    for (let attempt = 1; attempt <= DevAgent.MAX_TASK_RETRIES; attempt++) {
+      // Reset metrics for each attempt to measure tool calls
+      this.resetToolCallMetrics();
 
-      // Analyze the response to determine success
-      const success = this.analyzeResponse(response);
+      // Build prompt (with retry context if not first attempt)
+      const retryContext = attempt > 1
+        ? { attemptNumber: attempt, previousReason: lastVerification.reason }
+        : undefined;
+      const prompt = this.buildTaskPrompt(task, retryContext);
 
-      return {
-        success,
-        output: response,
-        filesModified: this.extractModifiedFiles(response),
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
-      };
+      try {
+        const response = await this.processMessageWithTools(prompt);
+        lastResponse = response;
+
+        // Verify sufficient tool calls were made
+        const verification = this.verifyToolCalls(task);
+        lastVerification = verification;
+
+        if (verification.sufficient) {
+          // Enough work done - check for overall success
+          const success = this.analyzeResponse(response);
+          return {
+            success,
+            output: response,
+            filesModified: this.extractModifiedFiles(response),
+          };
+        }
+
+        // Not enough work - log and retry
+        if (attempt < DevAgent.MAX_TASK_RETRIES) {
+          console.log(
+            `[DevAgent] Attempt ${attempt}/${DevAgent.MAX_TASK_RETRIES} insufficient: ${verification.reason}. Retrying...`
+          );
+        }
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error occurred',
+        };
+      }
     }
+
+    // Max retries reached without sufficient tool calls
+    return {
+      success: false,
+      error: `Task incomplete after ${DevAgent.MAX_TASK_RETRIES} attempts: ${lastVerification.reason}`,
+      output: lastResponse,
+    };
   }
 
   /**
    * Build a prompt for the task
    */
-  private buildTaskPrompt(task: Task): string {
-    let prompt = `## Task: ${task.title}\n\n`;
+  private buildTaskPrompt(
+    task: Task,
+    retryContext?: { attemptNumber: number; previousReason?: string }
+  ): string {
+    let prompt = '';
+
+    // Add retry warning if this is a retry attempt
+    if (retryContext) {
+      prompt += `## ⚠️ RETRY ATTEMPT ${retryContext.attemptNumber}/${DevAgent.MAX_TASK_RETRIES}\n\n`;
+      prompt += `Your previous attempt FAILED because:\n`;
+      prompt += `> ${retryContext.previousReason}\n\n`;
+      prompt += `**YOU MUST EXECUTE TOOL CALLS THIS TIME.**\n`;
+      prompt += `Describing what you would do is NOT acceptable. You must CALL THE TOOLS.\n`;
+      prompt += `If you do not call tools, this task will FAIL PERMANENTLY.\n\n`;
+      prompt += `---\n\n`;
+    }
+
+    prompt += `## Task: ${task.title}\n\n`;
     prompt += `**Type**: ${task.type}\n`;
     prompt += `**Priority**: ${task.priority}\n\n`;
     prompt += `**Description**:\n${task.description}\n\n`;
@@ -136,21 +198,32 @@ export class DevAgent extends Agent {
       prompt += `Do NOT manually write package.json, tsconfig.json, or other config files.\n`;
       prompt += `The template will create frontend/ and backend/ directories with all necessary files.\n\n`;
     } else if (isCustomizeTask) {
-      prompt += `**CRITICAL INSTRUCTION**: This is a CUSTOMIZE task.\n`;
-      prompt += `The project structure already exists. You MUST modify the existing files.\n\n`;
-      prompt += `REQUIRED STEPS:\n`;
-      prompt += `1. Use read_file to see the current file contents\n`;
-      prompt += `2. Use write_file to REPLACE the file with your implementation\n`;
-      prompt += `3. Each requirement needs a write_file call\n\n`;
-      prompt += `EXAMPLE - To create a TodoList component:\n`;
-      prompt += `<tool_call>\n`;
-      prompt += `{"tool": "read_file", "params": {"path": "todo-app/frontend/src/App.tsx"}}\n`;
-      prompt += `</tool_call>\n\n`;
-      prompt += `Then after seeing the contents:\n`;
-      prompt += `<tool_call>\n`;
-      prompt += `{"tool": "write_file", "params": {"path": "todo-app/frontend/src/components/TodoList.tsx", "content": "import React..."}}\n`;
-      prompt += `</tool_call>\n\n`;
-      prompt += `YOU MUST CALL write_file - describing what you would do is NOT enough!\n\n`;
+      prompt += `## CUSTOMIZE TASK - TOOL CALLS MANDATORY\n\n`;
+      prompt += `The project structure already exists. You MUST modify files using write_file.\n\n`;
+
+      prompt += `### REQUIRED WORKFLOW:\n`;
+      prompt += `1. **READ** existing file first:\n`;
+      prompt += `   \`\`\`\n   <tool_call>{"tool": "read_file", "params": {"path": "project/src/file.ts"}}</tool_call>\n   \`\`\`\n\n`;
+      prompt += `2. **WRITE** your changes:\n`;
+      prompt += `   \`\`\`\n   <tool_call>{"tool": "write_file", "params": {"path": "...", "content": "..."}}</tool_call>\n   \`\`\`\n\n`;
+
+      // Add context-specific instructions based on agent type
+      const agentType = task.context?.agentType;
+      if (agentType === 'backend') {
+        prompt += `### BACKEND CHECKLIST:\n`;
+        prompt += `- [ ] Create route file in src/routes/ (write_file)\n`;
+        prompt += `- [ ] UPDATE app.ts to import and register the route (write_file)\n`;
+        prompt += `Both files require write_file calls! The route won't work unless app.ts is updated.\n\n`;
+      } else if (agentType === 'frontend') {
+        prompt += `### FRONTEND CHECKLIST:\n`;
+        prompt += `- [ ] Create component files in src/components/ (write_file)\n`;
+        prompt += `- [ ] Create hooks in src/hooks/ if needed (write_file)\n`;
+        prompt += `- [ ] UPDATE App.tsx to import and use components (write_file)\n`;
+        prompt += `All require write_file calls! App.tsx MUST be updated or components won't render.\n\n`;
+      }
+
+      prompt += `**CRITICAL**: If you only describe what to do, the task will FAIL and retry.\n`;
+      prompt += `**CRITICAL**: EVERY implementation requires at least one write_file call.\n\n`;
     }
 
     prompt += `Please implement this task. Use the available tools to read existing code, `;
@@ -227,30 +300,95 @@ export class DevAgent extends Agent {
   }
 
   /**
-   * Analyze response to determine if task was successful
-   * Requires BOTH success indicators AND evidence of actual work (tool calls or file modifications)
+   * Verify that sufficient tool calls were made for the task type.
+   * Returns whether the work is sufficient and why if not.
+   */
+  private verifyToolCalls(task: Task): ToolCallVerification {
+    const metrics = this.getToolCallMetrics();
+
+    // Scaffold tasks: MUST call generate_project
+    if (this.isScaffoldTask(task)) {
+      const genCalls = metrics.byTool.get('generate_project') ?? 0;
+      if (genCalls === 0) {
+        return {
+          sufficient: false,
+          reason: 'Scaffold task requires generate_project tool call. You described what to do instead of doing it.',
+          required: ['generate_project'],
+        };
+      }
+      return { sufficient: true };
+    }
+
+    // Customize tasks: MUST call write_file
+    if (this.isCustomizeTask(task)) {
+      const writeCalls = metrics.byTool.get('write_file') ?? 0;
+      if (writeCalls === 0) {
+        return {
+          sufficient: false,
+          reason: 'Customize task requires at least one write_file call. You described changes instead of making them.',
+          required: ['write_file'],
+        };
+      }
+      return { sufficient: true };
+    }
+
+    // General tasks: at least one tool call expected
+    if (metrics.total === 0) {
+      return {
+        sufficient: false,
+        reason: 'No tool calls were made. You must use tools to complete the task, not just describe what you would do.',
+      };
+    }
+
+    return { sufficient: true };
+  }
+
+  /**
+   * Analyze response to determine if task was successful.
+   * Primary signal: Tool call metrics - if tools were successfully called, that's success.
+   * Secondary signal: Text analysis for cases without tool tracking.
    */
   private analyzeResponse(response: string): boolean {
     const lowerResponse = response.toLowerCase();
+    const metrics = this.getToolCallMetrics();
 
-    // Look for failure indicators first
-    const failureIndicators = [
+    // PRIORITY 1: Trust tool call metrics
+    // If tools were successfully called, that's strong evidence of success
+    // Only override with hard failures (actual errors, not soft language)
+    if (metrics.successful > 0) {
+      const hardFailures = [
+        'error:',
+        'exception:',
+        'failed to write',
+        'permission denied',
+        'enoent',           // File not found errors
+        'eacces',           // Permission errors
+        'syntax error',
+        'compilation failed',
+      ];
+      const hasHardFailure = hardFailures.some(f => lowerResponse.includes(f));
+      if (!hasHardFailure) {
+        return true;  // Tools worked, no hard failure = success
+      }
+    }
+
+    // PRIORITY 2: Soft failure indicators (only if no successful tool calls)
+    const softFailureIndicators = [
       'failed to',
       'could not',
       'unable to',
-      'error:',
-      'exception:',
       'cannot complete',
       'blocked by',
     ];
 
-    for (const indicator of failureIndicators) {
+    for (const indicator of softFailureIndicators) {
       if (lowerResponse.includes(indicator)) {
         return false;
       }
     }
 
-    // Check for evidence of actual work done (tool calls or their results)
+    // PRIORITY 3: Check for evidence of actual work done (text-based detection)
+    // Used when tool metrics aren't available or tools weren't tracked
     const toolUsageIndicators = [
       'tool_call',          // Tool call format
       'tool_result',        // Tool result format

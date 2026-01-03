@@ -8,15 +8,28 @@ import { LLMClient } from '../../src/core/llm/client.js';
 import { Tool } from '../../src/core/tools/types.js';
 import { Task } from '../../src/core/tasks/types.js';
 
-// Mock LLMClient
+// Mock LLMClient with tool call simulation
+// First call returns a tool_call, second call returns completion
 vi.mock('../../src/core/llm/client.js', () => {
+  let callCount = 0;
   return {
     LLMClient: vi.fn().mockImplementation(() => ({
-      chat: vi.fn().mockResolvedValue({
-        // Include tool usage evidence (wrote to) so analyzeResponse detects actual work
-        content: 'Implementation completed successfully. Wrote to src/feature.ts with the new feature code.',
-        stopReason: 'end_turn',
-        usage: { inputTokens: 10, outputTokens: 20 },
+      chat: vi.fn().mockImplementation(() => {
+        callCount++;
+        // First call: return a tool call to trigger tool execution
+        if (callCount % 2 === 1) {
+          return Promise.resolve({
+            content: '<tool_call>{"tool": "write_file", "params": {"path": "src/feature.ts", "content": "code"}}</tool_call>',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
+        }
+        // Second call: return completion
+        return Promise.resolve({
+          content: 'Implementation completed successfully. Wrote to src/feature.ts with the new feature code.',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        });
       }),
     })),
   };
@@ -163,11 +176,24 @@ describe('DevAgent', () => {
     });
 
     it('should extract modified files from response', async () => {
+      // First call: return a tool call to trigger tool execution
+      // Second call: return completion response
+      let callCount = 0;
       const mockWithFiles = {
-        chat: vi.fn().mockResolvedValue({
-          content: 'Successfully created "src/feature.ts" and wrote to "src/utils.ts"',
-          stopReason: 'end_turn',
-          usage: { inputTokens: 10, outputTokens: 20 },
+        chat: vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) {
+            return Promise.resolve({
+              content: '<tool_call>{"tool": "write_file", "params": {"path": "src/feature.ts", "content": "code"}}</tool_call>',
+              stopReason: 'end_turn',
+              usage: { inputTokens: 10, outputTokens: 20 },
+            });
+          }
+          return Promise.resolve({
+            content: 'Successfully created "src/feature.ts" and wrote to "src/utils.ts"',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 10, outputTokens: 20 },
+          });
         }),
       } as unknown as LLMClient;
 

@@ -352,6 +352,8 @@ export class PMAgent extends Agent {
 
     // Create general requirements task if no structured sections but has requirements
     if (!hasBackend && !hasFrontend && hasRequirements) {
+      // Detect agent type from task description for proper checklist prompting
+      const detectedType = this.detectAgentType(task.description);
       const customizeDescription = this.buildCustomizeDescription(task.description, projectName);
       devTasks.push(createTask({
         type: 'implement',
@@ -361,6 +363,7 @@ export class PMAgent extends Agent {
         priority: task.priority,
         parentTaskId: task.id,
         maxAttempts: 3,
+        context: { agentType: detectedType },
       }));
     }
 
@@ -623,6 +626,23 @@ export class PMAgent extends Agent {
     lines.push('IMPORTANT: Use write_file to create/modify files. Do NOT just describe what to do.');
 
     return lines.join('\n');
+  }
+
+  /**
+   * Detect agent type from task description based on keywords.
+   * Used to provide proper checklist prompting in DevAgent.
+   */
+  private detectAgentType(description: string): 'backend' | 'frontend' | undefined {
+    const lower = description.toLowerCase();
+    const backendKeywords = ['route', 'endpoint', 'api', 'express', 'server', 'backend', 'database', 'middleware'];
+    const frontendKeywords = ['component', 'react', 'frontend', 'ui', 'view', 'page', 'button', 'form', 'jsx', 'tsx'];
+
+    const hasBackend = backendKeywords.some(k => lower.includes(k));
+    const hasFrontend = frontendKeywords.some(k => lower.includes(k));
+
+    if (hasBackend && !hasFrontend) return 'backend';
+    if (hasFrontend && !hasBackend) return 'frontend';
+    return undefined;
   }
 
   /**

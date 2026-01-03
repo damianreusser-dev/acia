@@ -19,6 +19,17 @@ export interface AgentConfig {
   tools?: Tool[];
 }
 
+/**
+ * Metrics for tracking tool call execution.
+ * Used to verify agents actually make tool calls instead of just describing actions.
+ */
+export interface ToolCallMetrics {
+  total: number;
+  byTool: Map<string, number>;
+  successful: number;
+  failed: number;
+}
+
 export interface AgentMessage {
   from: string;
   to: string;
@@ -33,6 +44,17 @@ export class Agent {
   private llmClient: LLMClient;
   private conversationHistory: LLMMessage[] = [];
   private tools: Map<string, Tool> = new Map();
+
+  /**
+   * Tracks tool call execution for verification purposes.
+   * Reset at the start of each task to measure per-task tool usage.
+   */
+  protected toolCallMetrics: ToolCallMetrics = {
+    total: 0,
+    byTool: new Map(),
+    successful: 0,
+    failed: 0,
+  };
 
   /** Maximum number of messages to retain in conversation history */
   private static readonly MAX_HISTORY_SIZE = 100;
@@ -129,6 +151,16 @@ export class Agent {
 
       // Execute the tool
       const toolResult = await this.executeTool(toolCall.tool, toolCall.params);
+
+      // Track tool call metrics
+      this.toolCallMetrics.total++;
+      const currentCount = this.toolCallMetrics.byTool.get(toolCall.tool) ?? 0;
+      this.toolCallMetrics.byTool.set(toolCall.tool, currentCount + 1);
+      if (toolResult.success) {
+        this.toolCallMetrics.successful++;
+      } else {
+        this.toolCallMetrics.failed++;
+      }
 
       // Add tool result to conversation
       const resultMessage = toolResult.success
@@ -272,6 +304,30 @@ export class Agent {
       role: this.role,
       historyLength: this.conversationHistory.length,
       toolCount: this.tools.size,
+    };
+  }
+
+  /**
+   * Get a copy of current tool call metrics.
+   * Used by subclasses to verify tool usage.
+   */
+  getToolCallMetrics(): ToolCallMetrics {
+    return {
+      ...this.toolCallMetrics,
+      byTool: new Map(this.toolCallMetrics.byTool),
+    };
+  }
+
+  /**
+   * Reset tool call metrics.
+   * Should be called at the start of each new task.
+   */
+  resetToolCallMetrics(): void {
+    this.toolCallMetrics = {
+      total: 0,
+      byTool: new Map(),
+      successful: 0,
+      failed: 0,
     };
   }
 }

@@ -197,7 +197,8 @@ User/Human
 - Project templates (React, Express, Fullstack)
 - Template tools for agent scaffolding
 - Multi-team coordination in CEO
-- 492 tests passing (+8 E2E when API key set)
+- Tool call enforcement (retry loop, metrics-based success)
+- 502 unit tests passing (+25 E2E/diagnostic when API key set)
 
 ### Next Milestone: Benchmark Test
 - Todo app benchmark (`tests/e2e/benchmarks/fullstack-capability.test.ts`)
