@@ -9,7 +9,9 @@
 import { Agent, AgentConfig } from '../base/agent.js';
 import { Tool } from '../../core/tools/types.js';
 import { LLMClient } from '../../core/llm/client.js';
-import { Team, WorkflowResult, TeamConfig } from '../../team/team.js';
+import type { ITeam } from '../../team/team-interface.js';
+import { WorkflowResult } from '../../team/team-interface.js';
+import { TeamFactory, TeamFactoryConfig, TeamType } from '../../team/team-factory.js';
 import { WikiService } from '../../core/wiki/wiki-service.js';
 
 const CEO_SYSTEM_PROMPT = `You are the CEO Agent, the highest-level orchestrator in an autonomous software company.
@@ -87,7 +89,7 @@ export interface MultiTeamResult {
 export class CEOAgent extends Agent {
   private wikiService?: WikiService;
   private activeProjects: Map<string, Project> = new Map();
-  private teams: Map<string, Team> = new Map();
+  private teams: Map<string, ITeam> = new Map();
   private onHumanEscalation?: (reason: string, project: Project) => void;
 
   constructor(config: CEOAgentConfig) {
@@ -110,21 +112,41 @@ export class CEOAgent extends Agent {
   }
 
   /**
-   * Create and register a team
+   * Create and register a team using TeamFactory
+   *
+   * @param name - Name to register the team under
+   * @param config - Configuration for the team (uses TeamFactoryConfig)
+   * @param teamType - Type of team to create (default: 'tech')
+   * @returns The created team
    */
-  createTeam(name: string, config: Omit<TeamConfig, 'wikiService'>): Team {
-    const team = new Team({
+  createTeam(
+    name: string,
+    config: Omit<TeamFactoryConfig, 'wikiService'>,
+    teamType: TeamType = 'tech'
+  ): ITeam {
+    const fullConfig: TeamFactoryConfig = {
       ...config,
       wikiService: this.wikiService,
-    });
+    };
+    const team = TeamFactory.create(teamType, fullConfig);
     this.teams.set(name, team);
     return team;
   }
 
   /**
+   * Register an existing team instance
+   *
+   * @param name - Name to register the team under
+   * @param team - Team instance implementing ITeam
+   */
+  registerTeam(name: string, team: ITeam): void {
+    this.teams.set(name, team);
+  }
+
+  /**
    * Get a registered team by name
    */
-  getTeam(name: string): Team | undefined {
+  getTeam(name: string): ITeam | undefined {
     return this.teams.get(name);
   }
 

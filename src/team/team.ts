@@ -5,6 +5,8 @@
  * Manages the workflow of task planning, execution, and verification.
  * Supports Dev → QA → Fix iteration loops with escalation.
  * Optionally integrates with Wiki for persistent knowledge.
+ *
+ * Phase 6a: Now implements ITeam interface for abstraction.
  */
 
 import { LLMClient } from '../core/llm/client.js';
@@ -17,6 +19,12 @@ import { QAAgent } from '../agents/qa/qa-agent.js';
 import { PMAgent, TaskBreakdown } from '../agents/pm/pm-agent.js';
 import { WikiService } from '../core/wiki/wiki-service.js';
 import { createWikiTools } from '../core/wiki/wiki-tools.js';
+import type { ITeam } from './team-interface.js';
+import { WorkflowResult } from './team-interface.js';
+
+// Re-export for backward compatibility
+export { Priority, WorkflowResult } from './team-interface.js';
+export type { TeamCallbacks } from './team-interface.js';
 
 /**
  * Agent specialization types
@@ -34,18 +42,13 @@ export interface TeamConfig {
   onProgress?: (message: string, task?: Task) => void;
 }
 
-export interface WorkflowResult {
-  success: boolean;
-  task: Task;
-  breakdown?: TaskBreakdown;
-  devResults: Array<{ task: Task; result: TaskResult }>;
-  qaResults: Array<{ task: Task; result: TaskResult }>;
-  iterations: number;
-  escalated: boolean;
-  escalationReason?: string;
-}
-
-export class Team {
+/**
+ * TechTeam (formerly just Team)
+ *
+ * Implements ITeam interface for the Tech division.
+ * Coordinates PM, Dev (general/frontend/backend), and QA agents.
+ */
+export class Team implements ITeam {
   private pmAgent: PMAgent;
   private devAgent: DevAgent;
   private frontendDevAgent: FrontendDevAgent;
@@ -555,6 +558,28 @@ export class Team {
    */
   getWikiService(): WikiService | undefined {
     return this.wikiService;
+  }
+
+  // ============================================
+  // ITeam Interface Methods
+  // ============================================
+
+  /**
+   * Get the roles of agents in this team.
+   *
+   * @returns Array of role identifiers
+   */
+  getAgentRoles(): string[] {
+    return ['pm', 'dev', 'frontend-dev', 'backend-dev', 'qa'];
+  }
+
+  /**
+   * Get the team name.
+   *
+   * @returns Team name
+   */
+  getName(): string {
+    return 'TechTeam';
   }
 
   /**

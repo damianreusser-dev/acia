@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-01-03 - Phase 6a: Coordination Layer Refactoring
+
+### Added
+- ITeam interface for team abstraction (executeTask, getAgentRoles, getName, getWorkspace)
+- TeamFactory for creating teams by type without implementation coupling
+- WorkflowResult interface for standardized team execution results
+- AgentRole type system (pm, dev, qa, devops, ops, content, monitoring, incident)
+- Tool.roles property for role-based tool access control
+- filterToolsByRole() utility with backward compatibility
+- scaffold-detector.ts shared utility (isScaffoldTask, isCustomizeTask, extractProjectName, etc.)
+- response-parser.ts shared utility (analyzeResponse, extractModifiedFiles, parseToolResults, etc.)
+- CEO.registerTeam() method for custom team instances
+- Phase 6a benchmark tests (coordination-refactor.test.ts)
+- 143 new tests (ITeam, TeamFactory, tool permissions, utilities)
+
+### Changed
+- CEO now uses ITeam interface instead of concrete Team class
+- CEO.createTeam() uses TeamFactory internally
+- CEO.getTeam() returns ITeam instead of Team
+- Team class implements ITeam interface
+- Moved Priority and WorkflowResult to team-interface.ts
+
 ## [0.5.0] - 2026-01-03 - Phase 5: Fullstack Capability
 
 ### Added
