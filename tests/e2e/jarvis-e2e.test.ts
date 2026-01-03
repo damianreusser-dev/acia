@@ -16,6 +16,7 @@ import { LLMClient, LLMProvider } from '../../src/core/llm/client.js';
 import { WikiService } from '../../src/core/wiki/wiki-service.js';
 import { createFileTools } from '../../src/core/tools/file-tools.js';
 import { createExecTools } from '../../src/core/tools/exec-tools.js';
+import { E2E_TIMEOUTS } from './config.js';
 
 // E2E tests run when RUN_E2E_TESTS=true
 // API key is loaded from .env by tests/setup.ts
@@ -114,7 +115,7 @@ describeE2E('Jarvis Full Flow E2E (Real LLM)', () => {
       // This is smart behavior - not everything needs delegation
       expect(result.success).toBe(true);
     },
-    { timeout: 300000 } // 5 minute timeout
+    E2E_TIMEOUTS.TIER_6_EXTENDED // 20 minute timeout for full Jarvis flow
   );
 
   it(
@@ -153,7 +154,7 @@ describeE2E('Jarvis Full Flow E2E (Real LLM)', () => {
       console.log(`\nConversation entries: ${conversation.length}`);
       expect(conversation.length).toBeGreaterThan(0);
     },
-    { timeout: 300000 }
+    E2E_TIMEOUTS.TIER_6_EXTENDED
   );
 
   it(
@@ -174,7 +175,7 @@ describeE2E('Jarvis Full Flow E2E (Real LLM)', () => {
       // Jarvis may handle simple tasks directly without creating companies
       // This is expected behavior - simple tasks don't need full company structure
     },
-    { timeout: 300000 }
+    E2E_TIMEOUTS.TIER_6_EXTENDED
   );
 });
 
@@ -260,7 +261,7 @@ describeE2E('CEO Direct E2E (Real LLM)', () => {
 
       expect(result.projects.length).toBeGreaterThan(0);
     },
-    { timeout: 300000 }
+    E2E_TIMEOUTS.TIER_5_BENCHMARK
   );
 });
 

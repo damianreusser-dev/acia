@@ -76,6 +76,13 @@ export class Agent {
   }
 
   /**
+   * Get the base system prompt (for testing/debugging purposes)
+   */
+  getSystemPrompt(): string {
+    return this.systemPrompt;
+  }
+
+  /**
    * Add a message to conversation history with bounds enforcement.
    * Removes oldest messages when limit is exceeded.
    */

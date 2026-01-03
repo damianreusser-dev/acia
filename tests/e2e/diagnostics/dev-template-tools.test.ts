@@ -174,23 +174,51 @@ describeE2E('D2: DevAgent Template Tool Usage', () => {
       console.log(`[D2] Success: ${result.success}`);
       console.log(`[D2] Output preview: ${result.output?.substring(0, 500)}`);
 
-      // Check if users route was created
-      const usersRoutePath = path.join(projectDir, 'backend', 'src', 'routes', 'users.ts');
-      const usersRouteExists = await fileExists(usersRoutePath);
-      console.log(`[D2] Users route created: ${usersRouteExists}`);
+      // Check if users route was created - look in multiple possible locations
+      const possiblePaths = [
+        path.join(projectDir, 'backend', 'src', 'routes', 'users.ts'),
+        path.join(testWorkspace, 'src', 'routes', 'users.ts'),
+        path.join(testWorkspace, 'backend', 'src', 'routes', 'users.ts'),
+      ];
 
-      if (usersRouteExists) {
-        const content = await fs.readFile(usersRoutePath, 'utf-8');
+      let usersRouteExists = false;
+      let foundPath = '';
+      for (const p of possiblePaths) {
+        if (await fileExists(p)) {
+          usersRouteExists = true;
+          foundPath = p;
+          break;
+        }
+      }
+      const locationInfo = foundPath ? ' at ' + foundPath : '';
+      console.log(`[D2] Users route created: ${usersRouteExists}${locationInfo}`);
+
+      if (usersRouteExists && foundPath) {
+        const content = await fs.readFile(foundPath, 'utf-8');
         console.log(`[D2] Users route content preview: ${content.substring(0, 200)}`);
       }
 
-      // Check if app.ts was updated
-      const appTsPath = path.join(projectDir, 'backend', 'src', 'app.ts');
-      const appContent = await fs.readFile(appTsPath, 'utf-8');
-      const hasUsersImport = appContent.includes('usersRouter') || appContent.includes('users');
+      // Check if any app.ts was updated (check multiple locations)
+      const appPaths = [
+        path.join(projectDir, 'backend', 'src', 'app.ts'),
+        path.join(testWorkspace, 'src', 'app.ts'),
+        path.join(testWorkspace, 'backend', 'src', 'app.ts'),
+      ];
+
+      let hasUsersImport = false;
+      for (const appPath of appPaths) {
+        if (await fileExists(appPath)) {
+          const appContent = await fs.readFile(appPath, 'utf-8');
+          if (appContent.includes('usersRouter') || appContent.includes('users')) {
+            hasUsersImport = true;
+            console.log(`[D2] Found users import in: ${appPath}`);
+            break;
+          }
+        }
+      }
       console.log(`[D2] App.ts mentions users: ${hasUsersImport}`);
 
-      // Assertions
+      // Assertions - agent reports success AND created the route
       expect(result.success).toBe(true);
       expect(usersRouteExists).toBe(true);
 

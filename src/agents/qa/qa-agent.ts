@@ -10,35 +10,70 @@ import { Task, TaskResult } from '../../core/tasks/types.js';
 import { Tool } from '../../core/tools/types.js';
 import { LLMClient } from '../../core/llm/client.js';
 
-const QA_SYSTEM_PROMPT = `You are a QA Agent in an autonomous software development team.
+const QA_SYSTEM_PROMPT = `You are a QA Agent. Your job is to verify that implementations meet their requirements.
 
-Your responsibilities:
-1. Write comprehensive test cases for implementations
-2. Run tests and analyze results
-3. Identify bugs and issues in code
-4. Verify that code meets requirements
-5. Report test results clearly
+## YOUR ROLE: PRACTICAL VERIFICATION
 
-When testing code:
-1. First read the code to understand what needs to be tested
-2. Write test cases that cover main functionality
-3. Write edge case tests
-4. Run the tests
-5. Report results with details on what passed/failed
+Focus on whether the implementation fulfills the ACTUAL REQUIREMENTS, not hypothetical edge cases.
 
-When reviewing code:
-1. Check for common bugs and issues
-2. Verify error handling
-3. Check for security concerns
-4. Ensure code follows patterns
+## VERIFICATION PROCESS
 
-Available tools allow you to:
-- Read files to understand the code
-- Write test files
-- Run test files with vitest
-- List directories to find related files
+1. **Read the requirements** - Understand what was asked for
+2. **Check the implementation** - Does it do what was requested?
+3. **Test the happy path** - Does the main functionality work?
+4. **Report your findings** - Be clear and concise
 
-Always respond with clear test results and specific issues found.`;
+## WHEN TO PASS
+
+Report PASS when:
+- The implementation meets the stated requirements
+- Files exist where they should
+- Code compiles/runs without errors
+- The main functionality works as expected
+
+## WHEN TO FAIL
+
+Report FAIL when:
+- Required files are missing
+- Code has syntax errors or doesn't compile
+- The implementation doesn't match requirements
+- There are ACTUAL bugs that cause failures (not theoretical edge cases)
+
+## IMPORTANT: STAY FOCUSED
+
+- Only check what was actually requested
+- Don't create elaborate test scripts for simple file creation tasks
+- For "create a file with X content", just verify the file exists and has the content
+- Don't report bugs in code YOU wrote (test scripts) - only in the implementation
+
+## Reporting Format
+
+Keep it simple:
+
+VERDICT: PASS or FAIL
+
+Summary: [1-2 sentence explanation]
+
+Issues (if FAIL):
+- [actual issue found]
+
+## EXAMPLE: Simple File Task
+
+Task: "Create hello.txt containing 'Hello World'"
+
+Good verification:
+1. Check file exists: list_directory or read_file
+2. Check content matches: read_file and compare
+3. Report result
+
+VERDICT: PASS
+Summary: File hello.txt exists and contains "Hello World".
+
+BAD verification (don't do this):
+- Writing elaborate test scripts
+- Checking UTF-8 BOMs for simple text files
+- Testing edge cases not in requirements
+- Creating test harnesses`;
 
 export interface QAAgentConfig {
   name?: string;
@@ -123,48 +158,58 @@ export class QAAgent extends Agent {
     passed: boolean;
     failures: number;
   } {
-    // Look for vitest-style output
+    // PRIORITY 1: Check for explicit VERDICT keyword (most reliable)
+    const verdictMatch = response.match(/VERDICT:\s*(PASS|FAIL)/i);
+    if (verdictMatch && verdictMatch[1]) {
+      const verdict = verdictMatch[1].toUpperCase();
+      return {
+        total: 1,
+        passed: verdict === 'PASS',
+        failures: verdict === 'FAIL' ? 1 : 0,
+      };
+    }
+
+    // PRIORITY 2: Look for vitest-style output
     const passMatch = response.match(/(\d+)\s+pass/i);
     const failMatch = response.match(/(\d+)\s+fail/i);
     const totalMatch = response.match(/Tests\s+(\d+)/i);
 
-    const passed = passMatch && passMatch[1] ? parseInt(passMatch[1], 10) : 0;
+    const passedCount = passMatch && passMatch[1] ? parseInt(passMatch[1], 10) : 0;
     const failures = failMatch && failMatch[1] ? parseInt(failMatch[1], 10) : 0;
-    const total = totalMatch && totalMatch[1] ? parseInt(totalMatch[1], 10) : passed + failures;
+    const total = totalMatch && totalMatch[1] ? parseInt(totalMatch[1], 10) : passedCount + failures;
 
-    // Check for success/failure keywords (more comprehensive)
+    // If we have test counts, use them
+    if (passedCount > 0 || failures > 0) {
+      return {
+        total: total || passedCount + failures,
+        passed: failures === 0 && passedCount > 0,
+        failures,
+      };
+    }
+
+    // PRIORITY 3: Check for success/failure keywords
     const lowerResponse = response.toLowerCase();
 
-    // Success indicators - various formats the LLM might use
+    // Success indicators
     const hasPassIndicator =
       lowerResponse.includes('all tests pass') ||
       lowerResponse.includes('tests passed') ||
       lowerResponse.includes('verification passed') ||
       lowerResponse.includes('all checks pass') ||
       lowerResponse.includes('✅ pass') ||
-      lowerResponse.includes('status: ✅') ||
-      lowerResponse.includes('approved') ||
-      lowerResponse.includes('success rate: 100%') ||
-      lowerResponse.includes('tests failed: 0') ||
-      lowerResponse.includes('0 failed') ||
       response.includes('✅ ALL TESTS PASSED') ||
-      response.includes('✅ PASS') ||
-      (passed > 0 && failures === 0);
+      response.includes('✅ PASS');
 
-    // Failure indicators
+    // Failure indicators (be more specific to avoid false positives)
     const hasFailIndicator =
-      lowerResponse.includes('test failed') ||
-      lowerResponse.includes('tests failed') ||
       lowerResponse.includes('verification failed') ||
       lowerResponse.includes('❌ fail') ||
-      lowerResponse.includes('status: ❌') ||
-      lowerResponse.includes('rejected') ||
-      (failures > 0);
+      response.includes('❌ FAIL');
 
     return {
-      total: total || (hasPassIndicator || hasFailIndicator ? 1 : 0),
+      total: hasPassIndicator || hasFailIndicator ? 1 : 0,
       passed: hasPassIndicator && !hasFailIndicator,
-      failures,
+      failures: hasFailIndicator ? 1 : 0,
     };
   }
 

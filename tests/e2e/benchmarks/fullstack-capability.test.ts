@@ -112,13 +112,35 @@ async function startServer(
   });
 }
 
+// Helper to clean workspace with retries (handles locked files on Windows)
+async function cleanWorkspaceWithRetry(dir: string, maxRetries = 3): Promise<void> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await fs.rm(dir, { recursive: true, force: true });
+      return; // Success
+    } catch (error: unknown) {
+      const e = error as { code?: string };
+      if (e.code === 'EBUSY' || e.code === 'ENOTEMPTY') {
+        if (attempt < maxRetries) {
+          console.log(`[Benchmark] Cleanup attempt ${attempt} failed (EBUSY), retrying in 2s...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+          console.warn(`[Benchmark] Could not fully clean workspace after ${maxRetries} attempts`);
+        }
+      } else if (e.code !== 'ENOENT') {
+        throw error; // Re-throw unexpected errors
+      }
+    }
+  }
+}
+
 describeE2E('ACIA Fullstack Capability Benchmarks', () => {
   let jarvis: JarvisAgent;
   let wiki: WikiService;
 
   beforeAll(async () => {
-    // Clean up any previous test workspace
-    await fs.rm(BENCHMARK_WORKSPACE, { recursive: true, force: true });
+    // Clean up any previous test workspace with retries
+    await cleanWorkspaceWithRetry(BENCHMARK_WORKSPACE);
     await fs.mkdir(BENCHMARK_WORKSPACE, { recursive: true });
 
     wiki = new WikiService({ wikiRoot: BENCHMARK_WIKI });
@@ -129,8 +151,8 @@ describeE2E('ACIA Fullstack Capability Benchmarks', () => {
   });
 
   afterAll(async () => {
-    // Cleanup
-    await fs.rm(BENCHMARK_WORKSPACE, { recursive: true, force: true });
+    // Cleanup with retries
+    await cleanWorkspaceWithRetry(BENCHMARK_WORKSPACE);
   });
 
   describe('Phase 5a: Simple Fullstack Application', () => {

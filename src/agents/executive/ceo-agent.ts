@@ -221,21 +221,62 @@ export class CEOAgent extends Agent {
   }
 
   /**
-   * Check if a goal is for scaffolding a new project
+   * Check if a goal is for scaffolding a new project (simple scaffold only)
+   *
+   * IMPORTANT: This should only return true for SIMPLE scaffold requests.
+   * If the goal has detailed requirements (endpoints, features, etc.),
+   * we need full project planning, not just scaffolding.
    */
   private isScaffoldGoal(goal: string): boolean {
     const text = goal.toLowerCase();
+
+    // First check for explicit scaffold keywords
     const scaffoldKeywords = [
       'generate_project',
       'scaffold',
       'template=',
-      'create a fullstack',
-      'create a simple fullstack',
-      'fullstack todo',
-      'fullstack application',
-      'todo application',
     ];
-    return scaffoldKeywords.some(keyword => text.includes(keyword));
+    const hasScaffoldKeyword = scaffoldKeywords.some(keyword => text.includes(keyword));
+
+    // If there are detailed requirements, this is NOT a simple scaffold
+    // Detailed requirements include: specific endpoints, features, components, etc.
+    const detailedRequirementIndicators = [
+      'endpoint',
+      'api:',
+      'route',
+      'get /',
+      'post /',
+      'put /',
+      'delete /',
+      'component',
+      'model:',
+      'with:',   // "with: BACKEND..." indicates detailed specs
+      'requirements:',
+      'must have',
+      'should have',
+    ];
+    const hasDetailedRequirements = detailedRequirementIndicators.some(
+      indicator => text.includes(indicator)
+    );
+
+    // Only treat as scaffold if we have scaffold keyword AND no detailed requirements
+    // OR if it's a very simple request like "create a simple fullstack" without specs
+    if (hasDetailedRequirements) {
+      return false; // Full planning needed for detailed requirements
+    }
+
+    // Simple creation requests (no detailed specs)
+    const simpleCreationPatterns = [
+      'create a simple fullstack',
+      'create a fullstack project',
+      'create an express api project',
+      'create a react project',
+    ];
+    const isSimpleCreation = simpleCreationPatterns.some(
+      pattern => text.includes(pattern)
+    ) && !hasDetailedRequirements;
+
+    return hasScaffoldKeyword || isSimpleCreation;
   }
 
   /**
