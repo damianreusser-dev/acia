@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Phase 6b: Deployment & Operations (in progress)
+- DevOpsAgent for containerization and cloud deployment tasks
+- Docker tools: docker_build, docker_run, docker_compose_up/down, docker_logs, docker_ps, docker_stop, docker_rm
+- Deploy tools: deploy_to_railway, deploy_to_vercel, get_deployment_status, get_deployment_logs, rollback_deployment, delete_deployment, health_check
+- Deployment capability benchmark tests
+- 98 new tests (16 DevOpsAgent + 37 Docker + 35 Deploy + 10 benchmark)
+
 ## [0.6.0] - 2026-01-03 - Phase 6a: Coordination Layer Refactoring
 
 ### Added

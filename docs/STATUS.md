@@ -21,7 +21,7 @@
 
 ---
 
-## Current Phase: 6a - Coordination Layer Refactoring (COMPLETED)
+## Current Phase: 6b - Deployment & Operations (IN PROGRESS)
 
 ### Phase 1 - COMPLETED
 
@@ -347,12 +347,79 @@
 - [x] 18 tool permission tests
 - [x] No regressions on existing functionality
 
+### Phase 6b - Deployment & Operations (IN PROGRESS)
+
+**Goal**: Add DevOps capabilities for containerization and cloud deployment.
+
+**Benchmark**: `tests/e2e/benchmarks/deployment-capability.test.ts`
+
+#### DevOpsAgent (COMPLETED)
+- [x] DevOpsAgent for containerization and deployment tasks
+- [x] Docker task detection (dockerfile, container, compose keywords)
+- [x] Deploy task detection (railway, vercel, production keywords)
+- [x] Tool call verification and retry loop (inherits from Agent pattern)
+- [x] System prompt with Docker and deployment best practices
+
+#### Docker Tools (COMPLETED)
+- [x] docker_build - Build Docker images from Dockerfile
+- [x] docker_run - Run containers with port mapping and env vars
+- [x] docker_compose_up - Start docker-compose stacks
+- [x] docker_compose_down - Stop and remove compose services
+- [x] docker_logs - Get container logs with tail option
+- [x] docker_ps - List running containers
+- [x] docker_stop - Stop running containers
+- [x] docker_rm - Remove containers with force option
+- [x] Role-based access: devops, ops roles only
+
+#### Deploy Tools (COMPLETED)
+- [x] deploy_to_railway - Deploy to Railway (requires RAILWAY_TOKEN)
+- [x] deploy_to_vercel - Deploy to Vercel (requires VERCEL_TOKEN)
+- [x] get_deployment_status - Check Railway/Vercel deployment status
+- [x] get_deployment_logs - Get Railway deployment logs
+- [x] rollback_deployment - Rollback to previous Railway deployment
+- [x] delete_deployment - Clean up deployments
+- [x] health_check - Check URL health (accessible by monitoring role too)
+
+#### Test Results
+- [x] 16 DevOpsAgent unit tests
+- [x] 37 Docker tools tests (definitions, permissions, validation)
+- [x] 35 Deploy tools tests (definitions, permissions, validation, env vars)
+- [x] 10 Deployment benchmark tests (Dockerfile, compose, configs)
+- [x] **Total: 98 new tests passing**
+
+#### Pending (Phase 6c-6g)
+- [ ] MonitoringAgent - Health check polling, alert generation
+- [ ] IncidentAgent - Automated recovery, runbook execution
+- [ ] OpsDivision - Coordinates DevOps, Monitoring, Incident agents
+- [ ] TeamFactory registration for 'ops' team type
+
 ### Blocked
 None
 
 ---
 
 ## Recent Changes
+
+### 2026-01-03 (Phase 6b - Deployment & Operations)
+- **DevOpsAgent** created for containerization and deployment tasks
+  - Docker task detection (dockerfile, container, compose keywords)
+  - Deploy task detection (railway, vercel, production keywords)
+  - Tool call verification and retry loop
+- **Docker Tools** added (8 tools)
+  - docker_build, docker_run, docker_compose_up/down
+  - docker_logs, docker_ps, docker_stop, docker_rm
+  - Role-based access (devops, ops only)
+- **Deploy Tools** added (7 tools)
+  - deploy_to_railway, deploy_to_vercel
+  - get_deployment_status, get_deployment_logs
+  - rollback_deployment, delete_deployment
+  - health_check (also accessible by monitoring role)
+- **Deployment Benchmark** tests added
+  - Dockerfile and docker-compose generation validation
+  - Deployment config validation (Railway, Vercel)
+  - E2E Docker tests (requires Docker Desktop)
+  - E2E Cloud deployment tests (requires API tokens)
+- **Total: 749 unit tests passing (+26 E2E when API key set)**
 
 ### 2026-01-03 (Phase 6a - Coordination Layer Refactoring)
 - **PHASE 6a COMPLETE** - Coordination layer refactored for multi-team extensibility
@@ -754,7 +821,7 @@ None
 | Metric | Target | Current |
 |--------|--------|---------|
 | Test Coverage | >80% | TBD |
-| Unit Tests | All pass | 651/651 |
+| Unit Tests | All pass | 749/749 |
 | Integration Tests | All pass | 17/17 |
 | E2E Tests | All pass | 8/8 (when API key set) |
 | Diagnostic Tests (D1-D3) | All pass | 17/17 (when API key set) |
@@ -778,7 +845,11 @@ None
 | Scaffold Detector Tests | All pass | 41/41 |
 | Response Parser Tests | All pass | 56/56 |
 | Phase 6a Benchmark Tests | All pass | 19/19 |
-| Total Tests | All pass | 651 (+26 E2E when API key set) |
+| DevOpsAgent Tests | All pass | 16/16 |
+| Docker Tools Tests | All pass | 37/37 |
+| Deploy Tools Tests | All pass | 35/35 |
+| Phase 6b Benchmark Tests | All pass | 10/10 |
+| Total Tests | All pass | 749 (+26 E2E when API key set) |
 | CI Status | Passing | Passing |
 
 ---
