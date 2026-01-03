@@ -8,7 +8,7 @@
 import { Agent, AgentConfig } from '../base/agent.js';
 import { Task, TaskResult } from '../../core/tasks/types.js';
 import { Tool } from '../../core/tools/types.js';
-import { LLMClient } from '../../core/llm/client.js';
+import { LLMClient, ChatOptions } from '../../core/llm/client.js';
 
 const DEV_SYSTEM_PROMPT = `You are a Developer Agent in an autonomous software development team.
 
@@ -98,10 +98,14 @@ export class DevAgent extends Agent {
    * Execute a development task with retry loop for insufficient tool calls.
    * Agents that describe what they would do instead of actually doing it
    * will be retried with stronger instructions.
+   * Uses native function calling with tool forcing for scaffold tasks.
    */
   async executeTask(task: Task): Promise<TaskResult> {
     let lastResponse = '';
     let lastVerification: ToolCallVerification = { sufficient: true };
+
+    // Determine if we should force a specific tool (for scaffold tasks)
+    const isScaffold = this.isScaffoldTask(task);
 
     for (let attempt = 1; attempt <= DevAgent.MAX_TASK_RETRIES; attempt++) {
       // Reset metrics for each attempt to measure tool calls
@@ -113,8 +117,13 @@ export class DevAgent extends Agent {
         : undefined;
       const prompt = this.buildTaskPrompt(task, retryContext);
 
+      // Build chat options - force generate_project for scaffold tasks on first attempt
+      const options: ChatOptions | undefined = (isScaffold && attempt === 1)
+        ? { toolChoice: { name: 'generate_project' } }
+        : undefined;
+
       try {
-        const response = await this.processMessageWithTools(prompt);
+        const response = await this.processMessageWithTools(prompt, undefined, options);
         lastResponse = response;
 
         // Verify sufficient tool calls were made

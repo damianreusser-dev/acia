@@ -254,6 +254,17 @@
   - D2: DevAgent Template Tools - 4/4 passing (was failing)
   - D3: Team Scaffold Flow - 4/4 passing
 
+#### Phase 5k - OpenAI Native Function Calling (COMPLETED)
+- [x] Extended `LLMResponse` interface with `toolCalls` field
+- [x] Added `toOpenAITools()` helper to convert Tool[] to OpenAI function format
+- [x] Added `ChatOptions` interface for passing tools and toolChoice
+- [x] Updated `chatOpenAI()` to extract native tool calls from OpenAI responses
+- [x] Refactored `Agent.parseToolCall()` for dual format support (native + text-based)
+- [x] Updated `processMessageWithTools()` to pass tools to LLM
+- [x] Added tool forcing for scaffold tasks (`toolChoice: { name: 'generate_project' }`)
+- [x] Added unit tests for native function call handling
+- [x] Updated integration tests for Phase 5j compatibility
+
 **Success Criteria**:
 - [ ] Benchmark test passes (todo app with React + Express)
 - [ ] All generated code compiles
@@ -274,6 +285,18 @@ None
 ---
 
 ## Recent Changes
+
+### 2026-01-03 (Phase 5k - OpenAI Native Function Calling)
+- Extended LLMResponse with toolCalls for native function calling
+- Added toOpenAITools() to convert Tool[] to OpenAI format
+- Added ChatOptions interface for tools and toolChoice parameters
+- Updated chatOpenAI() to extract native tool calls from responses
+- Refactored Agent.parseToolCall() to handle both native and text-based formats
+- Updated processMessageWithTools() to pass tools to LLM
+- Added tool forcing for scaffold tasks (force generate_project on first attempt)
+- Added 3 unit tests for native function call handling in agent.test.ts
+- Updated integration tests for Phase 5j compatibility (tool calls in mocks)
+- **Total: 536 unit tests passing**
 
 ### 2026-01-03 (Phase 5j - Tool Call Enforcement)
 - Added tool call tracking to base Agent
@@ -603,6 +626,8 @@ None
 | 2026-01-03 | Retry loop for tool calls | Give agents multiple attempts to call required tools |
 | 2026-01-03 | Trust tool metrics | If tools succeeded, mark task as success (overrides text analysis) |
 | 2026-01-03 | agentType context | PM detects and passes agent type for proper checklist prompting |
+| 2026-01-03 | OpenAI native function calling | More reliable tool execution than text-based parsing |
+| 2026-01-03 | Tool forcing for scaffolds | Force generate_project on first attempt for reliability |
 
 ---
 
@@ -618,7 +643,7 @@ None
 | Metric | Target | Current |
 |--------|--------|---------|
 | Test Coverage | >80% | TBD |
-| Unit Tests | All pass | 502/502 |
+| Unit Tests | All pass | 536/536 |
 | Integration Tests | All pass | 17/17 |
 | E2E Tests | All pass | 8/8 (when API key set) |
 | Diagnostic Tests (D1-D3) | All pass | 17/17 (when API key set) |
@@ -636,7 +661,7 @@ None
 | CEO Multi-Team Tests | All pass | 6/6 |
 | Jarvis Workspace Tests | All pass | 5/5 |
 | Template Tools Tests | All pass | 11/11 |
-| Total Tests | All pass | 502 (+25 E2E) |
+| Total Tests | All pass | 536 (+25 E2E) |
 | CI Status | Passing | Passing |
 
 ---

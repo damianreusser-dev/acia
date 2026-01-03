@@ -8,7 +8,7 @@
  * - Basic lifecycle management
  */
 
-import { LLMClient, LLMMessage } from '../../core/llm/client.js';
+import { LLMClient, LLMMessage, LLMResponse, ChatOptions } from '../../core/llm/client.js';
 import { Tool, ToolResult } from '../../core/tools/types.js';
 
 export interface AgentConfig {
@@ -113,10 +113,12 @@ export class Agent {
   /**
    * Process a message with automatic tool execution loop.
    * Continues until the LLM responds without a tool call or max iterations reached.
+   * Supports native function calling when options.tools is provided.
    */
   async processMessageWithTools(
     message: string,
-    maxIterations: number = Agent.DEFAULT_MAX_ITERATIONS
+    maxIterations: number = Agent.DEFAULT_MAX_ITERATIONS,
+    options?: ChatOptions
   ): Promise<string> {
     this.addToHistory({
       role: 'user',
@@ -127,12 +129,17 @@ export class Agent {
     let iterations = 0;
     let finalResponse = '';
 
+    // Get tools array for native function calling (if not provided in options)
+    const toolsArray = options?.tools ?? Array.from(this.tools.values());
+
     while (iterations < maxIterations) {
       iterations++;
 
+      // Call LLM with tools for native function calling
       const response = await this.llmClient.chat(
         this.conversationHistory,
-        systemPromptWithTools
+        systemPromptWithTools,
+        { tools: toolsArray, toolChoice: options?.toolChoice }
       );
 
       this.addToHistory({
@@ -140,8 +147,8 @@ export class Agent {
         content: response.content,
       });
 
-      // Check for tool calls
-      const toolCall = this.parseToolCall(response.content);
+      // Check for tool calls (supports both native and text-based formats)
+      const toolCall = this.parseToolCall(response);
 
       if (!toolCall) {
         // No tool call, this is the final response
@@ -183,10 +190,30 @@ export class Agent {
   }
 
   /**
-   * Parse a tool call from LLM response
-   * Robust to common LLM output errors like </tool_call} instead of </tool_call>
+   * Parse a tool call from LLM response.
+   * Supports both native function calls (OpenAI) and text-based format.
    */
   private parseToolCall(
+    response: LLMResponse
+  ): { tool: string; params: Record<string, unknown> } | null {
+    // Strategy 1: Native function calls (from OpenAI with tools enabled)
+    if (response.toolCalls && response.toolCalls.length > 0) {
+      const firstCall = response.toolCalls[0]!;
+      return {
+        tool: firstCall.name,
+        params: firstCall.arguments,
+      };
+    }
+
+    // Strategy 2: Text-based parsing (existing logic)
+    return this.parseTextToolCall(response.content);
+  }
+
+  /**
+   * Parse tool call from text content using XML format.
+   * Robust to common LLM output errors like </tool_call} instead of </tool_call>
+   */
+  private parseTextToolCall(
     content: string
   ): { tool: string; params: Record<string, unknown> } | null {
     // Flexible regex that handles common LLM output errors:

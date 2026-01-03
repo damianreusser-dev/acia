@@ -10,6 +10,7 @@ import OpenAI from 'openai';
 import { LLMResponseCache, LLMCacheEntry } from '../cache/cache.js';
 import { getMetrics } from '../metrics/metrics.js';
 import { createLogger, getCorrelationId } from '../logging/logger.js';
+import { Tool } from '../tools/types.js';
 
 const logger = createLogger('LLMClient');
 
@@ -26,6 +27,43 @@ export interface LLMResponse {
     outputTokens: number;
   };
   cached?: boolean;
+  /** Native function calls from OpenAI (when tools are enabled) */
+  toolCalls?: Array<{
+    id: string;
+    name: string;
+    arguments: Record<string, unknown>;
+  }>;
+}
+
+/** Options for chat requests with tool support */
+export interface ChatOptions {
+  tools?: Tool[];
+  toolChoice?: 'auto' | 'required' | { name: string };
+}
+
+/**
+ * Convert our Tool definitions to OpenAI's function calling format.
+ */
+function toOpenAITools(tools: Tool[]): OpenAI.Chat.ChatCompletionTool[] {
+  return tools.map(tool => ({
+    type: 'function' as const,
+    function: {
+      name: tool.definition.name,
+      description: tool.definition.description,
+      parameters: {
+        type: 'object',
+        properties: Object.fromEntries(
+          tool.definition.parameters.map(p => [
+            p.name,
+            { type: p.type, description: p.description }
+          ])
+        ),
+        required: tool.definition.parameters
+          .filter(p => p.required)
+          .map(p => p.name),
+      },
+    },
+  }));
 }
 
 export type LLMProvider = 'anthropic' | 'openai';
@@ -81,13 +119,17 @@ export class LLMClient {
     }
   }
 
-  async chat(messages: LLMMessage[], systemPrompt?: string): Promise<LLMResponse> {
+  async chat(
+    messages: LLMMessage[],
+    systemPrompt?: string,
+    options?: ChatOptions
+  ): Promise<LLMResponse> {
     const startTime = Date.now();
     const correlationId = getCorrelationId();
     const metrics = getMetrics();
 
-    // Check cache first
-    if (this.cache) {
+    // Check cache first (skip cache if tools are provided - responses vary)
+    if (this.cache && !options?.tools) {
       const cached = this.cache.getResponse(messages, systemPrompt, this.model);
       if (cached) {
         const latencyMs = Date.now() - startTime;
@@ -120,13 +162,14 @@ export class LLMClient {
       provider: this.provider,
       model: this.model,
       messageCount: messages.length,
+      hasTools: !!options?.tools,
     });
 
     try {
       const result =
         this.provider === 'anthropic'
           ? await this.chatAnthropic(messages, systemPrompt)
-          : await this.chatOpenAI(messages, systemPrompt);
+          : await this.chatOpenAI(messages, systemPrompt, options);
 
       const latencyMs = Date.now() - startTime;
 
@@ -217,10 +260,12 @@ export class LLMClient {
 
   /**
    * Make a chat request to OpenAI API.
+   * Supports native function calling when tools are provided.
    */
   private async chatOpenAI(
     messages: LLMMessage[],
-    systemPrompt?: string
+    systemPrompt?: string,
+    options?: ChatOptions
   ): Promise<LLMResponse> {
     if (!this.openaiClient) {
       throw new Error('OpenAI client not initialized');
@@ -236,11 +281,35 @@ export class LLMClient {
       openaiMessages.push({ role: m.role, content: m.content });
     }
 
+    // Build tool_choice parameter if tools are provided
+    let toolChoice: OpenAI.ChatCompletionToolChoiceOption | undefined;
+    if (options?.tools && options.toolChoice) {
+      if (typeof options.toolChoice === 'string') {
+        toolChoice = options.toolChoice;
+      } else {
+        toolChoice = { type: 'function', function: { name: options.toolChoice.name } };
+      }
+    }
+
     const response = await this.openaiClient.chat.completions.create({
       model: this.model,
       max_completion_tokens: this.maxTokens,
       messages: openaiMessages,
+      tools: options?.tools ? toOpenAITools(options.tools) : undefined,
+      tool_choice: options?.tools ? (toolChoice ?? 'auto') : undefined,
     });
+
+    // Extract native tool calls if present
+    const nativeToolCalls = response.choices[0]?.message?.tool_calls;
+    const toolCalls = nativeToolCalls
+      ?.filter((tc): tc is OpenAI.Chat.ChatCompletionMessageToolCall & { type: 'function' } =>
+        tc.type === 'function'
+      )
+      .map(tc => ({
+        id: tc.id,
+        name: tc.function.name,
+        arguments: JSON.parse(tc.function.arguments || '{}') as Record<string, unknown>,
+      }));
 
     return {
       content: response.choices[0]?.message?.content ?? '',
@@ -250,6 +319,7 @@ export class LLMClient {
         outputTokens: response.usage?.completion_tokens ?? 0,
       },
       cached: false,
+      toolCalls,
     };
   }
 

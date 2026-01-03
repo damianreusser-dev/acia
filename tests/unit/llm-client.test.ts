@@ -146,4 +146,17 @@ describe('LLMClient', () => {
       expect(result).toBe('Hello from GPT!');
     });
   });
+
+  describe('native function calling (OpenAI)', () => {
+    // Note: Full native function call extraction is tested via Agent tests in agent.test.ts
+    // (see: "should handle native function calls from OpenAI", "should prefer native function calls over text parsing")
+    // Those tests mock the LLM client response with toolCalls and verify the Agent handles them correctly.
+
+    it('should return undefined toolCalls when no tool calls in response', async () => {
+      const client = new LLMClient({ provider: 'openai', apiKey: 'test-key' });
+      const response = await client.chat([{ role: 'user', content: 'Hello' }]);
+
+      expect(response.toolCalls).toBeUndefined();
+    });
+  });
 });

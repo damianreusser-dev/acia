@@ -324,5 +324,150 @@ describe('Agent', () => {
       expect(tool.execute).toHaveBeenCalledWith({ name: 'World' });
       expect(response).toBe('Greeted successfully!');
     });
+
+    it('should handle native function calls from OpenAI', async () => {
+      const tool: Tool = {
+        definition: {
+          name: 'read_file',
+          description: 'Read a file',
+          parameters: [{ name: 'path', type: 'string', description: 'File path', required: true }],
+        },
+        execute: vi.fn().mockResolvedValue({ success: true, output: 'File contents here' }),
+      };
+
+      // Simulate LLM returning native function calls (OpenAI style)
+      const mockChat = vi
+        .fn()
+        .mockResolvedValueOnce({
+          content: '',  // No text content when using native function calls
+          stopReason: 'tool_calls',
+          usage: { inputTokens: 10, outputTokens: 20 },
+          toolCalls: [
+            {
+              id: 'call_abc123',
+              name: 'read_file',
+              arguments: { path: '/test/file.txt' },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          content: 'I read the file successfully!',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        });
+
+      const customMockClient = { chat: mockChat } as unknown as LLMClient;
+
+      const agentWithTools = new Agent({
+        name: 'ToolAgent',
+        role: 'Tester',
+        systemPrompt: 'Test',
+        llmClient: customMockClient,
+        tools: [tool],
+      });
+
+      const response = await agentWithTools.processMessageWithTools('Read the file');
+
+      // Tool should be executed with native function call params
+      expect(tool.execute).toHaveBeenCalledWith({ path: '/test/file.txt' });
+      expect(response).toBe('I read the file successfully!');
+    });
+
+    it('should prefer native function calls over text parsing', async () => {
+      const tool: Tool = {
+        definition: {
+          name: 'write_file',
+          description: 'Write a file',
+          parameters: [
+            { name: 'path', type: 'string', description: 'File path', required: true },
+            { name: 'content', type: 'string', description: 'Content', required: true },
+          ],
+        },
+        execute: vi.fn().mockResolvedValue({ success: true, output: 'Written' }),
+      };
+
+      // Simulate LLM returning BOTH native function calls AND text-based tool call
+      // Native should take priority
+      const mockChat = vi
+        .fn()
+        .mockResolvedValueOnce({
+          content: '<tool_call>{"tool": "different_tool", "params": {}}</tool_call>',
+          stopReason: 'tool_calls',
+          usage: { inputTokens: 10, outputTokens: 20 },
+          toolCalls: [
+            {
+              id: 'call_xyz',
+              name: 'write_file',
+              arguments: { path: '/correct/path.txt', content: 'Native content' },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          content: 'Done!',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        });
+
+      const customMockClient = { chat: mockChat } as unknown as LLMClient;
+
+      const agentWithTools = new Agent({
+        name: 'ToolAgent',
+        role: 'Tester',
+        systemPrompt: 'Test',
+        llmClient: customMockClient,
+        tools: [tool],
+      });
+
+      const response = await agentWithTools.processMessageWithTools('Write the file');
+
+      // Should use native function call, not text parsing
+      expect(tool.execute).toHaveBeenCalledWith({
+        path: '/correct/path.txt',
+        content: 'Native content',
+      });
+      expect(response).toBe('Done!');
+    });
+
+    it('should fall back to text parsing when no native calls', async () => {
+      const tool: Tool = {
+        definition: {
+          name: 'list_files',
+          description: 'List files',
+          parameters: [{ name: 'dir', type: 'string', description: 'Directory', required: true }],
+        },
+        execute: vi.fn().mockResolvedValue({ success: true, output: 'file1.txt\nfile2.txt' }),
+      };
+
+      // Simulate LLM returning only text-based tool call (no native)
+      const mockChat = vi
+        .fn()
+        .mockResolvedValueOnce({
+          content: '<tool_call>\n{"tool": "list_files", "params": {"dir": "/home"}}\n</tool_call>',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+          // No toolCalls property
+        })
+        .mockResolvedValueOnce({
+          content: 'Found files!',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        });
+
+      const customMockClient = { chat: mockChat } as unknown as LLMClient;
+
+      const agentWithTools = new Agent({
+        name: 'ToolAgent',
+        role: 'Tester',
+        systemPrompt: 'Test',
+        llmClient: customMockClient,
+        tools: [tool],
+      });
+
+      const response = await agentWithTools.processMessageWithTools('List the files');
+
+      // Should fall back to text-based parsing
+      expect(tool.execute).toHaveBeenCalledWith({ dir: '/home' });
+      expect(response).toBe('Found files!');
+    });
   });
 });
