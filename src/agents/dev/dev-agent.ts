@@ -124,6 +124,8 @@ export class DevAgent extends Agent {
 
     // Check if this is a scaffold task
     const isScaffoldTask = this.isScaffoldTask(task);
+    const isCustomizeTask = this.isCustomizeTask(task);
+
     if (isScaffoldTask) {
       prompt += `**CRITICAL INSTRUCTION**: This is a project scaffolding task.\n`;
       prompt += `You MUST use the generate_project tool as your FIRST action.\n`;
@@ -133,6 +135,22 @@ export class DevAgent extends Agent {
       prompt += `</tool_call>\n\n`;
       prompt += `Do NOT manually write package.json, tsconfig.json, or other config files.\n`;
       prompt += `The template will create frontend/ and backend/ directories with all necessary files.\n\n`;
+    } else if (isCustomizeTask) {
+      prompt += `**CRITICAL INSTRUCTION**: This is a CUSTOMIZE task.\n`;
+      prompt += `The project structure already exists. You MUST modify the existing files.\n\n`;
+      prompt += `REQUIRED STEPS:\n`;
+      prompt += `1. Use read_file to see the current file contents\n`;
+      prompt += `2. Use write_file to REPLACE the file with your implementation\n`;
+      prompt += `3. Each requirement needs a write_file call\n\n`;
+      prompt += `EXAMPLE - To create a TodoList component:\n`;
+      prompt += `<tool_call>\n`;
+      prompt += `{"tool": "read_file", "params": {"path": "todo-app/frontend/src/App.tsx"}}\n`;
+      prompt += `</tool_call>\n\n`;
+      prompt += `Then after seeing the contents:\n`;
+      prompt += `<tool_call>\n`;
+      prompt += `{"tool": "write_file", "params": {"path": "todo-app/frontend/src/components/TodoList.tsx", "content": "import React..."}}\n`;
+      prompt += `</tool_call>\n\n`;
+      prompt += `YOU MUST CALL write_file - describing what you would do is NOT enough!\n\n`;
     }
 
     prompt += `Please implement this task. Use the available tools to read existing code, `;
@@ -157,6 +175,54 @@ export class DevAgent extends Agent {
         return true;
       }
     }
+    return false;
+  }
+
+  /**
+   * Check if a task is for customizing an existing project
+   */
+  private isCustomizeTask(task: Task): boolean {
+    const text = `${task.title} ${task.description}`.toLowerCase();
+
+    // Exact substring matches
+    const exactKeywords = [
+      'customize',
+      'working directory:',
+      'add/modify files',
+      'modify files',
+      'update src/',
+      'create component',
+      'add a new route',
+      'add new route',
+      'add endpoint',
+      'existing project',
+      'existing express',
+      'existing react',
+      'write_file tool',
+      'use write_file',
+    ];
+
+    for (const keyword of exactKeywords) {
+      if (text.includes(keyword)) {
+        return true;
+      }
+    }
+
+    // Pattern matches - more flexible
+    const patterns = [
+      /add\s+\w*\s*route/,      // "add users route", "add route", "add a route"
+      /add\s+\w*\s*endpoint/,   // "add items endpoint", etc.
+      /create\s+\w+\s+component/, // "create Todo component"
+      /update\s+\S+\.tsx?/,     // "update app.ts", "update App.tsx"
+      /modify\s+\S+\.tsx?/,     // "modify routes.ts"
+    ];
+
+    for (const pattern of patterns) {
+      if (pattern.test(text)) {
+        return true;
+      }
+    }
+
     return false;
   }
 
