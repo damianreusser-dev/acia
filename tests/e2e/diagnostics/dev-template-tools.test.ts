@@ -16,6 +16,7 @@ import { LLMClient, LLMProvider } from '../../../src/core/llm/client.js';
 import { createFileTools } from '../../../src/core/tools/file-tools.js';
 import { createTemplateTools } from '../../../src/core/tools/template-tools.js';
 import { createTask } from '../../../src/core/tasks/types.js';
+import { E2E_TIMEOUTS, logE2EEnvironment } from '../config.js';
 
 // E2E tests run when RUN_E2E_TESTS=true
 const describeE2E = describe.runIf(process.env.RUN_E2E_TESTS === 'true');
@@ -120,7 +121,7 @@ describeE2E('D2: DevAgent Template Tool Usage', () => {
 
       console.log('[D2] PASSED: DevAgent successfully used generate_project tool');
     },
-    { timeout: 120000 }
+    E2E_TIMEOUTS.TIER_2_AGENT
   );
 
   it(
@@ -195,7 +196,7 @@ describeE2E('D2: DevAgent Template Tool Usage', () => {
 
       console.log('[D2] PASSED: DevAgent successfully customized scaffolded project');
     },
-    { timeout: 120000 }
+    E2E_TIMEOUTS.TIER_2_AGENT
   );
 
   it(
@@ -248,7 +249,7 @@ describeE2E('D2: DevAgent Template Tool Usage', () => {
 
       console.log('[D2] PASSED: DevAgent used express template correctly');
     },
-    { timeout: 120000 }
+    E2E_TIMEOUTS.TIER_2_AGENT
   );
 });
 

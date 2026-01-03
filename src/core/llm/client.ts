@@ -297,6 +297,8 @@ export class LLMClient {
       messages: openaiMessages,
       tools: options?.tools ? toOpenAITools(options.tools) : undefined,
       tool_choice: options?.tools ? (toolChoice ?? 'auto') : undefined,
+      // Ensure exactly 0 or 1 tool call per turn for simpler agent loop handling
+      parallel_tool_calls: options?.tools ? false : undefined,
     });
 
     // Extract native tool calls if present
