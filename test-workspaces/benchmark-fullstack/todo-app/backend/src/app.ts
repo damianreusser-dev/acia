@@ -16,7 +16,7 @@ export function createApp(): Express {
   app.use(express.urlencoded({ extended: true }));
 
   // Routes
-  app.use('/health', healthRouter);
+  app.use('/api/health', healthRouter);
 
   // Error handling
   app.use(errorHandler);
