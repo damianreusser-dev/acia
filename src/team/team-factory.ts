@@ -12,6 +12,7 @@ import { Tool } from '../core/tools/types.js';
 import { WikiService } from '../core/wiki/wiki-service.js';
 import { ITeam, TeamCallbacks } from './team-interface.js';
 import { Team, TeamConfig } from './team.js';
+import { OpsDivision } from '../company/divisions/ops-division.js';
 
 /**
  * Configuration passed to team creators
@@ -67,6 +68,8 @@ export class TeamFactory {
   static {
     // Register default tech team
     TeamFactory.register('tech', TeamFactory.createTechTeam);
+    // Register ops team
+    TeamFactory.register('ops', TeamFactory.createOpsTeam);
   }
 
   /**
@@ -144,5 +147,21 @@ export class TeamFactory {
       onProgress: config.onProgress,
     };
     return new Team(teamConfig);
+  }
+
+  /**
+   * Default creator for OpsTeam.
+   *
+   * Creates an OpsDivision with DevOps, Monitoring, and Incident agents.
+   */
+  private static createOpsTeam(config: TeamFactoryConfig): ITeam {
+    return new OpsDivision({
+      workspace: config.workspace,
+      llmClient: config.llmClient,
+      tools: config.tools ?? [],
+      wikiService: config.wikiService,
+      onEscalation: config.onEscalation,
+      onProgress: config.onProgress,
+    });
   }
 }

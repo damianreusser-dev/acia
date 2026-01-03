@@ -10,3 +10,4 @@ export * from './qa/index.js';
 export * from './pm/index.js';
 export * from './architect/index.js';
 export * from './devops/index.js';
+export * from './ops/index.js';

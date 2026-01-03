@@ -7,13 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-01-03 - Phase 6b-6g: Deployment & Operations Complete
+
 ### Added
-- Phase 6b: Deployment & Operations (in progress)
-- DevOpsAgent for containerization and cloud deployment tasks
-- Docker tools: docker_build, docker_run, docker_compose_up/down, docker_logs, docker_ps, docker_stop, docker_rm
-- Deploy tools: deploy_to_railway, deploy_to_vercel, get_deployment_status, get_deployment_logs, rollback_deployment, delete_deployment, health_check
-- Deployment capability benchmark tests
-- 98 new tests (16 DevOpsAgent + 37 Docker + 35 Deploy + 10 benchmark)
+- **Phase 6b: DevOpsAgent & Tools**
+  - DevOpsAgent for containerization and cloud deployment tasks
+  - Docker tools: docker_build, docker_run, docker_compose_up/down, docker_logs, docker_ps, docker_stop, docker_rm
+  - Deploy tools: deploy_to_railway, deploy_to_vercel, get_deployment_status, get_deployment_logs, rollback_deployment, delete_deployment, health_check
+  - Deployment capability benchmark tests
+  - 98 new tests (16 DevOpsAgent + 37 Docker + 35 Deploy + 10 benchmark)
+
+- **Phase 6c-6e: MonitoringAgent & IncidentAgent**
+  - MonitoringAgent for health check monitoring, metrics collection, and alert generation
+    - Target management (add/remove monitoring targets)
+    - Health state tracking (healthy/unhealthy/unknown)
+    - Consecutive failure counting with configurable alert threshold
+    - Severity-based alerts (medium at 3 failures, high at 5, critical at 10)
+  - IncidentAgent for incident lifecycle management and automated recovery
+    - Runbook execution from wiki-based configurations
+    - Recovery strategies: restart (2 attempts) → rollback (1 attempt) → escalate
+    - Incident state machine (detected → acknowledged → investigating → mitigating → resolved/escalated)
+    - Automatic escalation when recovery attempts exhausted
+  - Incident recovery benchmark tests (health failure detection, auto-restart, rollback, escalation)
+  - 72 new tests (19 MonitoringAgent + 32 IncidentAgent + 21 benchmark)
+
+- **Phase 6f-6g: OpsDivision & Registration**
+  - OpsDivision implementing ITeam interface for CEO/TeamFactory integration
+  - Coordinates DevOpsAgent, MonitoringAgent, and IncidentAgent
+  - Task type detection (deployment, monitoring, incident) with workflow routing
+  - Role-based tool filtering for ops agents (devops, monitoring, incident roles)
+  - TeamFactory registration for 'ops' team type
+  - 18 new tests for OpsDivision
+
+### Fixed
+- MonitoringAgent constructor now copies targets array to prevent shared reference mutation between tests
 
 ## [0.6.0] - 2026-01-03 - Phase 6a: Coordination Layer Refactoring
 
