@@ -105,7 +105,9 @@ export class DevAgent extends Agent {
     let lastVerification: ToolCallVerification = { sufficient: true };
 
     // Determine if we should force a specific tool (for scaffold tasks)
+    // Only force if the tool is actually available to avoid OpenAI errors
     const isScaffold = this.isScaffoldTask(task);
+    const canForceGenerateProject = isScaffold && this.hasTool('generate_project');
 
     for (let attempt = 1; attempt <= DevAgent.MAX_TASK_RETRIES; attempt++) {
       // Reset metrics for each attempt to measure tool calls
@@ -118,7 +120,8 @@ export class DevAgent extends Agent {
       const prompt = this.buildTaskPrompt(task, retryContext);
 
       // Build chat options - force generate_project for scaffold tasks on first attempt
-      const options: ChatOptions | undefined = (isScaffold && attempt === 1)
+      // Only if the tool is available (to avoid OpenAI 400 errors)
+      const options: ChatOptions | undefined = (canForceGenerateProject && attempt === 1)
         ? { toolChoice: { name: 'generate_project' } }
         : undefined;
 
