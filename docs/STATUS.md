@@ -1,6 +1,6 @@
 # ACIA Project Status
 
-**Last Updated**: 2026-01-02
+**Last Updated**: 2026-01-03
 
 ---
 
@@ -265,6 +265,27 @@
 - [x] Added unit tests for native function call handling
 - [x] Updated integration tests for Phase 5j compatibility
 
+#### Phase 5L - Diagnostic Test Suite & Reliability (PLANNING)
+**Goal:** Create comprehensive isolated diagnostic tests to find and fix remaining benchmark issues.
+
+**Research Findings (from OpenAI Agent docs):**
+- `parallel_tool_calls: false` ensures exactly 0 or 1 tool call per turn
+- `tool_choice: "required"` forces at least one function call
+- Handle multiple tool calls with unique `tool_call_id`
+
+**Diagnostic Test Tiers:**
+- Tier 0: Foundation (<30s) - LLM connectivity, tool conversion
+- Tier 1: Tool Execution (<60s) - Single tool calls
+- Tier 2: Agent Behavior (<120s) - Isolated agent tests
+- Tier 3: Workflow (<300s) - PM → Dev flows
+- Tier 4: Integration (<600s) - Full team + CEO flows
+
+**Fixes Planned:**
+- [ ] Add `parallel_tool_calls: false` to OpenAI calls
+- [ ] Create timeout configuration for test tiers
+- [ ] Investigate QA success detection / escalation logic
+- [ ] Make benchmark quality checks more flexible
+
 **Success Criteria**:
 - [ ] Benchmark test passes (todo app with React + Express)
 - [ ] All generated code compiles
@@ -276,8 +297,22 @@
 - Template fixes applied: Health endpoint at /api/health, tests aligned
 - Agent fixes applied: Dev requires explicit success, PM provides structured customize tasks
 - Token efficiency passing: 12,112 tokens for hello-world server
-- Ambiguous requirements passing: Agent asks for clarification
-- Ready for benchmark validation
+
+**Benchmark Test Results (2026-01-03)**:
+- Diagnostic D1 (Templates): 9/9 ✅
+- Diagnostic D2 (DevAgent): 3/4 ⚠️ (timeout, work completes but after 120s)
+- Diagnostic D3 (Team Flow): 4/4 ✅
+- Benchmark "create todo app": ❌ (success=false, escalation triggered)
+- Benchmark "quality standards": ❌ (missing useEffect in React code)
+- Benchmark "ambiguous requirements": ❌ (timeout at 60s)
+- Benchmark "error recovery": ❌ (timeout at 300s)
+
+**Root Causes Identified**:
+1. QA reports success but system marks failure due to escalation logic
+2. Default timeouts (60-300s) insufficient for real LLM flows
+3. Generated React code uses useState but not useEffect
+
+**Phase 5L Planning**: See plan file for detailed diagnostic test strategy
 
 ### Blocked
 None
