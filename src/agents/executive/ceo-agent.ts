@@ -337,11 +337,33 @@ export class CEOAgent extends Agent {
 
   /**
    * Parse projects from LLM response
+   *
+   * IMPORTANT: When a goal has detailed requirements (like specific endpoints, components, etc.),
+   * we preserve the FULL goal context in the project description. This ensures the PM and Dev
+   * agents have all the information they need to implement the requirements correctly.
    */
   private parseProjects(response: string, goal: string): Project[] {
     const projects: Project[] = [];
 
-    // Look for PROJECTS section
+    // Check if goal has detailed requirements - if so, always pass full goal as single project
+    // This prevents requirements from being lost during project breakdown
+    const hasDetailedRequirements = this.goalHasDetailedRequirements(goal);
+
+    if (hasDetailedRequirements) {
+      // For detailed requirements, don't break down - pass full context
+      const title = this.extractProjectTitle(goal);
+      projects.push({
+        id: `proj_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`,
+        title,
+        description: goal, // Full goal with all requirements
+        priority: 'high',
+        status: 'pending',
+        createdAt: new Date(),
+      });
+      return projects;
+    }
+
+    // Look for PROJECTS section for simpler goals
     const projectsMatch = response.match(/PROJECTS:?\s*([\s\S]*?)$/i);
     if (projectsMatch && projectsMatch[1]) {
       // Parse each project line: "1. [Title] | [Priority] | [Description]"
@@ -356,10 +378,14 @@ export class CEOAgent extends Agent {
               ? (priorityStr as 'low' | 'medium' | 'high' | 'critical')
               : 'medium';
 
+            // Include original goal context to preserve requirements
+            const projectDescription = match[3].trim();
+            const fullDescription = `${projectDescription}\n\n--- Original Goal Context ---\n${goal}`;
+
             projects.push({
               id: `proj_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`,
               title: match[1].trim(),
-              description: match[3].trim(),
+              description: fullDescription,
               priority,
               status: 'pending',
               createdAt: new Date(),
@@ -373,7 +399,7 @@ export class CEOAgent extends Agent {
     if (projects.length === 0) {
       projects.push({
         id: `proj_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`,
-        title: goal.substring(0, 50),
+        title: this.extractProjectTitle(goal),
         description: goal,
         priority: 'medium',
         status: 'pending',
@@ -382,6 +408,58 @@ export class CEOAgent extends Agent {
     }
 
     return projects;
+  }
+
+  /**
+   * Check if a goal has detailed requirements that should be preserved as-is
+   */
+  private goalHasDetailedRequirements(goal: string): boolean {
+    const text = goal.toLowerCase();
+
+    // Goals with detailed API/component specs should not be broken down
+    const detailedIndicators = [
+      'endpoint',
+      'get /api/',
+      'post /api/',
+      'put /api/',
+      'delete /api/',
+      'rest api with',
+      'component:',
+      'model:',
+      'todo model',
+      'requirements:',
+      'backend',
+      'frontend',
+    ];
+
+    // Count how many detailed indicators are present
+    const indicatorCount = detailedIndicators.filter(ind => text.includes(ind)).length;
+
+    // If multiple detailed indicators, this is a comprehensive spec
+    return indicatorCount >= 3;
+  }
+
+  /**
+   * Extract a meaningful project title from the goal
+   */
+  private extractProjectTitle(goal: string): string {
+    // Try to extract project name from common patterns
+    const patterns = [
+      /create\s+(?:a\s+)?(?:fullstack\s+)?(\w+)\s+application/i,
+      /create\s+(?:a\s+)?(\w+)\s+app/i,
+      /build\s+(?:a\s+)?(\w+)\s+project/i,
+      /in\s+(?:the\s+)?directory\s+["']?([^"'\s]+)["']?/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = goal.match(pattern);
+      if (match && match[1]) {
+        return `${match[1].charAt(0).toUpperCase() + match[1].slice(1)} Application`;
+      }
+    }
+
+    // Fallback: use first 50 chars
+    return goal.substring(0, 50).trim();
   }
 
   /**
