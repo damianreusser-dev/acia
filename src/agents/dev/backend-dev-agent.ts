@@ -2,17 +2,30 @@
  * Backend Developer Agent
  *
  * Specializes in backend development: Node.js, Express, APIs, databases.
+ * Extends DevAgent to inherit tool call verification and retry logic.
  * Follows RESTful conventions and backend best practices.
  */
 
-import { Agent, AgentConfig } from '../base/agent.js';
-import { Task, TaskResult } from '../../core/tasks/types.js';
+import { DevAgent } from './dev-agent.js';
 import { Tool } from '../../core/tools/types.js';
 import { LLMClient } from '../../core/llm/client.js';
 
-const BACKEND_DEV_SYSTEM_PROMPT = `You are a Backend Developer Agent specializing in Node.js and Express.
+const BACKEND_DEV_SYSTEM_PROMPT = `You are a Backend Developer Agent. You write code by CALLING TOOLS, not by describing code.
 
-Your expertise:
+## ABSOLUTE RULE: CALL TOOLS OR FAIL
+
+Every task requires tool calls. There are NO exceptions.
+
+WRONG (will FAIL):
+- "I would create a file with..."
+- "Here's what the code should look like..."
+- "You can implement this by..."
+
+CORRECT (will SUCCEED):
+<tool_call>{"tool": "write_file", "params": {"path": "file.ts", "content": "..."}}</tool_call>
+
+## Your Expertise
+
 - Node.js with TypeScript
 - Express.js for REST APIs
 - RESTful API design patterns
@@ -21,6 +34,41 @@ Your expertise:
 - Authentication (JWT, sessions)
 - Input validation and sanitization
 - API documentation
+
+## Required Workflow
+
+Step 1: READ existing code
+<tool_call>{"tool": "read_file", "params": {"path": "src/app.ts"}}</tool_call>
+
+Step 2: WRITE your implementation
+<tool_call>{"tool": "write_file", "params": {"path": "src/routes/todos.ts", "content": "..."}}</tool_call>
+
+Step 3: UPDATE app.ts to register routes
+<tool_call>{"tool": "write_file", "params": {"path": "src/app.ts", "content": "..."}}</tool_call>
+
+## Tools Reference
+
+| Tool | Use For | Required? |
+|------|---------|-----------|
+| write_file | Create/update files | YES - every task |
+| read_file | Understand existing code | YES - before writing |
+| generate_project | Scaffold new projects | When task says "scaffold" |
+| list_directory | Find files | Optional |
+| run_code | Test implementation | Optional |
+
+## Task Types
+
+SCAFFOLD TASK (keywords: "scaffold", "create project", "generate project"):
+→ Call generate_project FIRST with template and projectName
+→ Example: {"tool": "generate_project", "params": {"template": "express", "projectName": "api"}}
+
+CUSTOMIZE TASK (keywords: "add route", "add endpoint", "modify", "update", "working directory"):
+→ Read existing files FIRST
+→ Write new route files with write_file
+→ Update app.ts to import and register new routes
+→ BOTH the new file AND the import update are required
+
+## Backend Best Practices
 
 When implementing backend tasks:
 1. Create RESTful API endpoints
@@ -37,35 +85,16 @@ File organization:
 - src/services/ - Business logic
 - src/models/ - Data models and types
 - src/middleware/ - Express middleware
-- src/utils/ - Utility functions
-- src/config/ - Configuration files
+- src/types/ - TypeScript type definitions
 
-API Response Format:
-\`\`\`json
-{
-  "success": true,
-  "data": { ... },
-  "message": "Operation completed"
-}
-\`\`\`
+## Output Format
 
-Error Response Format:
-\`\`\`json
-{
-  "success": false,
-  "error": "Error message",
-  "code": "ERROR_CODE"
-}
-\`\`\`
+After completing, report:
+- Files created: [paths]
+- Files modified: [paths]
+- Tool calls made: [count]
 
-Always:
-- Use async/await for async operations
-- Wrap async handlers in try/catch or use asyncHandler
-- Log errors appropriately
-- Return consistent response structures
-- Never expose internal error details to clients
-
-For new projects, use the generate_project tool with template "express" to scaffold a complete Express+TypeScript API with Vitest tests.`;
+If you cannot complete the task, explain why and what's blocking you.`;
 
 export interface BackendDevAgentConfig {
   name?: string;
@@ -74,169 +103,19 @@ export interface BackendDevAgentConfig {
   workspace: string;
 }
 
-export class BackendDevAgent extends Agent {
-  private workspace: string;
-
+/**
+ * Backend Developer Agent
+ * Extends DevAgent to inherit tool call verification and retry logic.
+ */
+export class BackendDevAgent extends DevAgent {
   constructor(config: BackendDevAgentConfig) {
-    const agentConfig: AgentConfig = {
+    super({
       name: config.name ?? 'BackendDevAgent',
       role: 'Backend Developer',
       systemPrompt: BACKEND_DEV_SYSTEM_PROMPT,
       llmClient: config.llmClient,
       tools: config.tools,
-    };
-    super(agentConfig);
-    this.workspace = config.workspace;
-  }
-
-  /**
-   * Execute a backend development task
-   */
-  async executeTask(task: Task): Promise<TaskResult> {
-    const prompt = this.buildTaskPrompt(task);
-
-    try {
-      const response = await this.processMessageWithTools(prompt);
-      const success = this.analyzeResponse(response);
-
-      return {
-        success,
-        output: response,
-        filesModified: this.extractModifiedFiles(response),
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
-      };
-    }
-  }
-
-  /**
-   * Build a backend-specific task prompt
-   */
-  private buildTaskPrompt(task: Task): string {
-    let prompt = `## Backend Task: ${task.title}\n\n`;
-    prompt += `**Type**: ${task.type}\n`;
-    prompt += `**Priority**: ${task.priority}\n\n`;
-    prompt += `**Description**:\n${task.description}\n\n`;
-
-    if (task.context) {
-      prompt += `**Additional Context**:\n${JSON.stringify(task.context, null, 2)}\n\n`;
-
-      // If there's an API contract, include it
-      if (task.context.apiContract) {
-        prompt += `**API Contract to implement**:\n`;
-        prompt += `\`\`\`typescript\n`;
-        const contracts = Array.isArray(task.context.apiContract)
-          ? task.context.apiContract
-          : [task.context.apiContract];
-        for (const contract of contracts) {
-          prompt += `// ${contract.method} ${contract.path}\n`;
-          prompt += `// ${contract.description}\n`;
-          if (contract.requestType) {
-            prompt += `// Request: ${contract.requestType}\n`;
-          }
-          prompt += `// Response: ${contract.responseType}\n\n`;
-        }
-        prompt += `\`\`\`\n\n`;
-      }
-
-      // If there are data models, include them
-      if (task.context.dataModels) {
-        prompt += `**Data Models**:\n`;
-        prompt += `\`\`\`typescript\n${task.context.dataModels}\n\`\`\`\n\n`;
-      }
-    }
-
-    prompt += `**Workspace**: ${this.workspace}\n\n`;
-    prompt += `Please implement this backend task. Create Express routes and handlers, `;
-    prompt += `implement proper error handling, and follow RESTful conventions.\n\n`;
-    prompt += `Remember to:\n`;
-    prompt += `- Use proper HTTP methods and status codes\n`;
-    prompt += `- Validate input data\n`;
-    prompt += `- Handle errors gracefully\n`;
-    prompt += `- Return consistent response structures`;
-
-    return prompt;
-  }
-
-  /**
-   * Analyze response to determine if task was successful
-   */
-  private analyzeResponse(response: string): boolean {
-    const lowerResponse = response.toLowerCase();
-
-    const failureIndicators = [
-      'failed to',
-      'could not',
-      'unable to',
-      'error:',
-      'exception:',
-      'cannot complete',
-      'blocked by',
-      'syntax error',
-      'type error',
-    ];
-
-    for (const indicator of failureIndicators) {
-      if (lowerResponse.includes(indicator)) {
-        return false;
-      }
-    }
-
-    const successIndicators = [
-      'created route',
-      'created endpoint',
-      'implemented',
-      'completed',
-      'wrote',
-      'created',
-      'updated',
-      'successfully',
-      'express',
-      'router',
-    ];
-
-    for (const indicator of successIndicators) {
-      if (lowerResponse.includes(indicator)) {
-        return true;
-      }
-    }
-
-    return true;
-  }
-
-  /**
-   * Extract file paths that were modified from the response
-   */
-  private extractModifiedFiles(response: string): string[] {
-    const files: string[] = [];
-
-    // Look for backend file patterns
-    const filePatterns = [
-      /wrote\s+to\s+['"]?([^'">\n]+\.ts)['"]?/gi,
-      /created\s+['"]?([^\s'">\n]+\.ts)['"]?/gi,
-      /wrote\s+to\s+['"]?([^'">\n]+\.js)['"]?/gi,
-      /created\s+['"]?([^\s'">\n]+\.js)['"]?/gi,
-    ];
-
-    for (const pattern of filePatterns) {
-      const matches = response.matchAll(pattern);
-      for (const match of matches) {
-        if (match[1]) {
-          files.push(match[1]);
-        }
-      }
-    }
-
-    return [...new Set(files)];
-  }
-
-  /**
-   * Get the workspace path
-   */
-  getWorkspace(): string {
-    return this.workspace;
+      workspace: config.workspace,
+    });
   }
 }

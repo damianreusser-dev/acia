@@ -2,17 +2,30 @@
  * Frontend Developer Agent
  *
  * Specializes in frontend development: React, TypeScript, HTML/CSS, UI components.
+ * Extends DevAgent to inherit tool call verification and retry logic.
  * Follows modern frontend best practices and patterns.
  */
 
-import { Agent, AgentConfig } from '../base/agent.js';
-import { Task, TaskResult } from '../../core/tasks/types.js';
+import { DevAgent } from './dev-agent.js';
 import { Tool } from '../../core/tools/types.js';
 import { LLMClient } from '../../core/llm/client.js';
 
-const FRONTEND_DEV_SYSTEM_PROMPT = `You are a Frontend Developer Agent specializing in React and TypeScript.
+const FRONTEND_DEV_SYSTEM_PROMPT = `You are a Frontend Developer Agent. You write code by CALLING TOOLS, not by describing code.
 
-Your expertise:
+## ABSOLUTE RULE: CALL TOOLS OR FAIL
+
+Every task requires tool calls. There are NO exceptions.
+
+WRONG (will FAIL):
+- "I would create a file with..."
+- "Here's what the code should look like..."
+- "You can implement this by..."
+
+CORRECT (will SUCCEED):
+<tool_call>{"tool": "write_file", "params": {"path": "file.tsx", "content": "..."}}</tool_call>
+
+## Your Expertise
+
 - React 18+ with hooks and functional components
 - TypeScript with strict typing
 - CSS/SCSS, Tailwind CSS, styled-components
@@ -20,6 +33,41 @@ Your expertise:
 - API integration with fetch/axios
 - Modern build tools (Vite, webpack)
 - Component architecture and reusability
+
+## Required Workflow
+
+Step 1: READ existing code
+<tool_call>{"tool": "read_file", "params": {"path": "src/App.tsx"}}</tool_call>
+
+Step 2: WRITE your implementation
+<tool_call>{"tool": "write_file", "params": {"path": "src/components/TodoList.tsx", "content": "..."}}</tool_call>
+
+Step 3: UPDATE App.tsx to use new components
+<tool_call>{"tool": "write_file", "params": {"path": "src/App.tsx", "content": "..."}}</tool_call>
+
+## Tools Reference
+
+| Tool | Use For | Required? |
+|------|---------|-----------|
+| write_file | Create/update files | YES - every task |
+| read_file | Understand existing code | YES - before writing |
+| generate_project | Scaffold new projects | When task says "scaffold" |
+| list_directory | Find files | Optional |
+| run_code | Test implementation | Optional |
+
+## Task Types
+
+SCAFFOLD TASK (keywords: "scaffold", "create project", "generate project"):
+→ Call generate_project FIRST with template and projectName
+→ Example: {"tool": "generate_project", "params": {"template": "react", "projectName": "frontend"}}
+
+CUSTOMIZE TASK (keywords: "add component", "modify", "update", "working directory"):
+→ Read existing files FIRST
+→ Write new component files with write_file
+→ Update App.tsx to import and use new components
+→ BOTH the new file AND the import update are required
+
+## Frontend Best Practices
 
 When implementing frontend tasks:
 1. Create clean, typed React components
@@ -38,14 +86,14 @@ File organization:
 - src/api/ - API client functions
 - src/styles/ - Global styles and themes
 
-Always:
-- Export components as named exports
-- Include TypeScript interfaces for props
-- Handle edge cases (loading, errors, empty data)
-- Keep components under 200 lines
-- Use meaningful variable and function names
+## Output Format
 
-For new projects, use the generate_project tool with template "react" to scaffold a complete React+TypeScript project with Vite.`;
+After completing, report:
+- Files created: [paths]
+- Files modified: [paths]
+- Tool calls made: [count]
+
+If you cannot complete the task, explain why and what's blocking you.`;
 
 export interface FrontendDevAgentConfig {
   name?: string;
@@ -54,150 +102,19 @@ export interface FrontendDevAgentConfig {
   workspace: string;
 }
 
-export class FrontendDevAgent extends Agent {
-  private workspace: string;
-
+/**
+ * Frontend Developer Agent
+ * Extends DevAgent to inherit tool call verification and retry logic.
+ */
+export class FrontendDevAgent extends DevAgent {
   constructor(config: FrontendDevAgentConfig) {
-    const agentConfig: AgentConfig = {
+    super({
       name: config.name ?? 'FrontendDevAgent',
       role: 'Frontend Developer',
       systemPrompt: FRONTEND_DEV_SYSTEM_PROMPT,
       llmClient: config.llmClient,
       tools: config.tools,
-    };
-    super(agentConfig);
-    this.workspace = config.workspace;
-  }
-
-  /**
-   * Execute a frontend development task
-   */
-  async executeTask(task: Task): Promise<TaskResult> {
-    const prompt = this.buildTaskPrompt(task);
-
-    try {
-      const response = await this.processMessageWithTools(prompt);
-      const success = this.analyzeResponse(response);
-
-      return {
-        success,
-        output: response,
-        filesModified: this.extractModifiedFiles(response),
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
-      };
-    }
-  }
-
-  /**
-   * Build a frontend-specific task prompt
-   */
-  private buildTaskPrompt(task: Task): string {
-    let prompt = `## Frontend Task: ${task.title}\n\n`;
-    prompt += `**Type**: ${task.type}\n`;
-    prompt += `**Priority**: ${task.priority}\n\n`;
-    prompt += `**Description**:\n${task.description}\n\n`;
-
-    if (task.context) {
-      prompt += `**Additional Context**:\n${JSON.stringify(task.context, null, 2)}\n\n`;
-
-      // If there's an API contract, include it
-      if (task.context.apiContract) {
-        prompt += `**API Contract to integrate with**:\n`;
-        prompt += `\`\`\`typescript\n${JSON.stringify(task.context.apiContract, null, 2)}\n\`\`\`\n\n`;
-      }
-    }
-
-    prompt += `**Workspace**: ${this.workspace}\n\n`;
-    prompt += `Please implement this frontend task. Create React components with TypeScript, `;
-    prompt += `handle state management appropriately, and ensure proper error handling.\n\n`;
-    prompt += `Remember to:\n`;
-    prompt += `- Use functional components with hooks\n`;
-    prompt += `- Define TypeScript interfaces for all props and state\n`;
-    prompt += `- Handle loading and error states\n`;
-    prompt += `- Follow React naming conventions`;
-
-    return prompt;
-  }
-
-  /**
-   * Analyze response to determine if task was successful
-   */
-  private analyzeResponse(response: string): boolean {
-    const lowerResponse = response.toLowerCase();
-
-    const failureIndicators = [
-      'failed to',
-      'could not',
-      'unable to',
-      'error:',
-      'exception:',
-      'cannot complete',
-      'blocked by',
-      'syntax error',
-      'type error',
-    ];
-
-    for (const indicator of failureIndicators) {
-      if (lowerResponse.includes(indicator)) {
-        return false;
-      }
-    }
-
-    const successIndicators = [
-      'created component',
-      'implemented',
-      'completed',
-      'wrote',
-      'created',
-      'updated',
-      'successfully',
-      '.tsx',
-      '.jsx',
-    ];
-
-    for (const indicator of successIndicators) {
-      if (lowerResponse.includes(indicator)) {
-        return true;
-      }
-    }
-
-    return true;
-  }
-
-  /**
-   * Extract file paths that were modified from the response
-   */
-  private extractModifiedFiles(response: string): string[] {
-    const files: string[] = [];
-
-    // Look for frontend file extensions
-    const filePatterns = [
-      /wrote\s+to\s+['"]?([^'">\n]+\.tsx?)['"]?/gi,
-      /created\s+['"]?([^\s'">\n]+\.tsx?)['"]?/gi,
-      /wrote\s+to\s+['"]?([^'">\n]+\.css)['"]?/gi,
-      /created\s+['"]?([^\s'">\n]+\.css)['"]?/gi,
-    ];
-
-    for (const pattern of filePatterns) {
-      const matches = response.matchAll(pattern);
-      for (const match of matches) {
-        if (match[1]) {
-          files.push(match[1]);
-        }
-      }
-    }
-
-    return [...new Set(files)];
-  }
-
-  /**
-   * Get the workspace path
-   */
-  getWorkspace(): string {
-    return this.workspace;
+      workspace: config.workspace,
+    });
   }
 }

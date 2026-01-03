@@ -71,6 +71,8 @@ export interface DevAgentConfig {
   llmClient: LLMClient;
   tools: Tool[];
   workspace: string;
+  systemPrompt?: string; // Optional custom system prompt for specialized agents
+  role?: string; // Optional custom role for specialized agents
 }
 
 /**
@@ -91,8 +93,8 @@ export class DevAgent extends Agent {
   constructor(config: DevAgentConfig) {
     const agentConfig: AgentConfig = {
       name: config.name ?? 'DevAgent',
-      role: 'Developer',
-      systemPrompt: DEV_SYSTEM_PROMPT,
+      role: config.role ?? 'Developer',
+      systemPrompt: config.systemPrompt ?? DEV_SYSTEM_PROMPT,
       llmClient: config.llmClient,
       tools: config.tools,
     };
@@ -107,6 +109,7 @@ export class DevAgent extends Agent {
    * Uses native function calling with tool forcing for scaffold tasks.
    */
   async executeTask(task: Task): Promise<TaskResult> {
+    console.log(`[${this.name}] === TASK START: ${task.title} ===`);
     let lastResponse = '';
     let lastVerification: ToolCallVerification = { sufficient: true };
 
@@ -132,12 +135,17 @@ export class DevAgent extends Agent {
         : undefined;
 
       try {
-        const response = await this.processMessageWithTools(prompt, undefined, options);
+        // Use fewer iterations: 2 for scaffold (we force the tool), 5 for others
+        const maxIter = isScaffold ? 2 : 5;
+        const response = await this.processMessageWithTools(prompt, maxIter, options);
         lastResponse = response;
 
         // Verify sufficient tool calls were made
         const verification = this.verifyToolCalls(task);
         lastVerification = verification;
+        console.log(`[${this.name}] Verification: sufficient=${verification.sufficient}, reason=${verification.reason ?? 'none'}`);
+        const m = this.getToolCallMetrics();
+        console.log(`[${this.name}] Metrics: total=${m.total}, byTool=${JSON.stringify(Object.fromEntries(m.byTool))}`);
 
         if (verification.sufficient) {
           // Enough work done - check for overall success

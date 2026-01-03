@@ -153,6 +153,11 @@ export class Team {
     let breakdown: TaskBreakdown;
     try {
       breakdown = await this.pmAgent.planTask(parentTask);
+      console.log('[Team] PM breakdown:', {
+        devTasks: breakdown.devTasks.map(t => ({ id: t.id, title: t.title })),
+        qaTasks: breakdown.qaTasks.map(t => ({ id: t.id, title: t.title })),
+        order: breakdown.order
+      });
       this.emitProgress(
         `Planned ${breakdown.devTasks.length} dev tasks and ${breakdown.qaTasks.length} QA tasks`,
         parentTask
@@ -194,8 +199,13 @@ export class Team {
         const task = this.pmAgent.getTask(orderItem.taskId);
         if (!task) continue;
 
+        console.log(`[Team] Processing task: ${task.title}, status=${task.status}, iteration=${iterations}`);
+
         // Skip completed tasks
-        if (task.status === 'completed') continue;
+        if (task.status === 'completed') {
+          console.log(`[Team] Skipping completed task: ${task.title}`);
+          continue;
+        }
 
         // Execute the task with the appropriate agent
         let result: TaskResult;
@@ -213,6 +223,8 @@ export class Team {
             qaFailures.push({ qaTask: task, result });
           }
         }
+
+        console.log(`[Team] Task ${task.title} result: success=${result.success}`);
 
         // Let PM handle the result
         const decision = await this.pmAgent.handleTaskResult(

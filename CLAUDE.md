@@ -157,7 +157,7 @@ User/Human
 - **Agent Memory**: Short-term context, long-term summaries
 - **Channels**: Message history for async communication
 
-## Current Phase: 5 - Fullstack Capability (IN PROGRESS)
+## Current Phase: 6 - Coordination Refactor + Deployment & Operations (NOT STARTED)
 
 ### Completed Phases
 
@@ -188,9 +188,8 @@ User/Human
 - Memory bounds (conversation history, channel messages)
 - LLM response caching (LRUCache with TTL)
 - Structured logging (JSON format, correlation IDs)
-- Performance metrics collector
 
-**Phase 5 - Fullstack Capability** (IN PROGRESS)
+**Phase 5 - Fullstack Capability** ✅
 - ArchitectAgent for system design
 - GitTools for version control
 - Specialized agents (FrontendDevAgent, BackendDevAgent)
@@ -198,12 +197,16 @@ User/Human
 - Template tools for agent scaffolding
 - Multi-team coordination in CEO
 - Tool call enforcement (retry loop, metrics-based success)
-- 502 unit tests passing (+25 E2E/diagnostic when API key set)
+- OpenAI native function calling support
+- Benchmark test passes: creates complete fullstack todo app from single prompt
+- 535 unit tests passing (+26 E2E when API key set)
 
-### Next Milestone: Benchmark Test
-- Todo app benchmark (`tests/e2e/benchmarks/fullstack-capability.test.ts`)
-- Jarvis creates complete fullstack app from single prompt
-- All generated code compiles and tests pass
+### Next Milestone: Phase 6 - Coordination Refactor + Deployment & Operations
+- Refactor coordination layer (ITeam interface, TeamFactory, tool permissions)
+- DevOpsAgent for deployment artifacts
+- Docker and cloud deployment tools
+- MonitoringAgent and IncidentAgent for ops
+- See docs/ROADMAP.md for details
 
 ## Key Decisions Log
 

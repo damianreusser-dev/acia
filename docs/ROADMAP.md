@@ -1,7 +1,7 @@
 # ACIA Development Roadmap
 
 **Created**: 2026-01-02
-**Updated**: 2026-01-02
+**Updated**: 2026-01-03
 **Target**: Autonomous Company Factory
 
 ## Overview
@@ -17,8 +17,8 @@ This roadmap defines the path from current state (Phase 5 in progress) to full a
 ✅ Phase 2:  Basic Team (Complete)
 ✅ Phase 3:  Company Structure (Complete)
 ✅ Phase 4:  Production Hardening (Complete)
-🔄 Phase 5:  Fullstack Capability (In Progress)
-⬜ Phase 6:  Coordination Refactor + Deployment & Operations
+✅ Phase 5:  Fullstack Capability (Complete)
+🔄 Phase 6:  Coordination Refactor + Deployment & Operations (Next)
 ⬜ Phase 7:  Persona-Based QA & Validation
 ⬜ Phase 8:  Self-Improvement Pipeline
 ⬜ Phase 9:  Marketing & Growth Division
@@ -61,13 +61,13 @@ This roadmap defines the path from current state (Phase 5 in progress) to full a
 
 ---
 
-## Phase 5: Fullstack Capability 🔄
+## Phase 5: Fullstack Capability ✅
 
-**Status**: In Progress (~85% complete)
+**Status**: Complete (2026-01-03)
 
 **Goal**: ACIA can create complete fullstack applications from a single prompt.
 
-**Benchmark**: `tests/e2e/benchmarks/fullstack-capability.test.ts`
+**Benchmark**: `tests/e2e/benchmarks/fullstack-capability.test.ts` - **PASSING**
 
 ### Completed Sub-phases
 
@@ -115,19 +115,24 @@ This roadmap defines the path from current state (Phase 5 in progress) to full a
 - [x] DevAgent scaffold task handling
 - [x] 3 unit tests
 
-### Remaining Work
+#### 5i-5L: Benchmark Validation & Reliability (COMPLETED)
+- [x] Run fullstack benchmark with real API
+- [x] Fix issues discovered in multi-layer orchestration
+- [x] Iterate until benchmark passes
+- [x] Document learnings
 
-#### 5i: Benchmark Validation
-- [ ] Run fullstack benchmark with real API
-- [ ] Fix issues discovered in multi-layer orchestration
-- [ ] Iterate until benchmark passes
-- [ ] Document learnings
+**Key fixes applied:**
+- BackendDevAgent/FrontendDevAgent now extend DevAgent (inherit tool verification)
+- PM task descriptions use full paths (${projectName}/backend/src/routes/)
+- CEO isScaffoldGoal() detects detailed requirements
+- Tool call enforcement with retry loop (MAX_TASK_RETRIES=3)
+- OpenAI native function calling support
 
-### Phase 5 Success Criteria
-- [ ] Benchmark test passes (todo app with React + Express)
-- [ ] All generated code compiles without errors
-- [ ] All generated tests pass
-- [ ] API endpoints work correctly
+### Phase 5 Success Criteria (ALL MET)
+- [x] Benchmark test passes (todo app with React + Express) - **418 seconds**
+- [x] All generated code compiles without errors
+- [x] All generated tests pass
+- [x] API endpoints work correctly (GET/POST/PUT/DELETE /api/todos)
 
 ---
 
@@ -963,14 +968,14 @@ enum NotificationType {
 | Phase | New Tests | Running Total |
 |-------|-----------|---------------|
 | 1-4 (Complete) | - | 372 |
-| 5 (In Progress) | ~120 | ~492 |
-| 6 | ~120 | ~612 |
-| 7 | ~90 | ~702 |
-| 8 | ~110 | ~812 |
-| 9 | ~80 | ~892 |
-| 10 | ~70 | ~962 |
-| 11 | ~60 | ~1022 |
-| 12 | ~80 | ~1102 |
+| 5 (Complete) | 163 | 535 |
+| 6 | ~120 | ~655 |
+| 7 | ~90 | ~745 |
+| 8 | ~110 | ~855 |
+| 9 | ~80 | ~935 |
+| 10 | ~70 | ~1005 |
+| 11 | ~60 | ~1065 |
+| 12 | ~80 | ~1145 |
 
 **Target**: 1100+ tests for full system
 

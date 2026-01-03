@@ -595,31 +595,31 @@ export class PMAgent extends Agent {
     if (section === 'BACKEND') {
       lines.push(`## Customize Backend for ${projectName}`);
       lines.push('');
-      lines.push(`Working directory: ${projectName}/backend/`);
+      lines.push(`Project root: ${projectName}/backend/`);
       lines.push('');
       lines.push('Requirements:');
       lines.push(sectionContent);
       lines.push('');
-      lines.push('Steps:');
-      lines.push('1. Use read_file to check existing src/app.ts structure');
-      lines.push('2. Create new route files in src/routes/ for each endpoint group');
-      lines.push('3. Create type definitions in src/types/ if needed');
-      lines.push('4. Update src/app.ts to import and register new routes');
-      lines.push('5. Use read_file to verify changes');
+      lines.push(`Steps (ALL paths must start with ${projectName}/backend/):`);
+      lines.push(`1. Use read_file to check existing ${projectName}/backend/src/app.ts structure`);
+      lines.push(`2. Create new route files in ${projectName}/backend/src/routes/ for each endpoint group`);
+      lines.push(`3. Create type definitions in ${projectName}/backend/src/types/ if needed`);
+      lines.push(`4. Update ${projectName}/backend/src/app.ts to import and register new routes`);
+      lines.push(`5. Use read_file to verify changes`);
     } else {
       lines.push(`## Customize Frontend for ${projectName}`);
       lines.push('');
-      lines.push(`Working directory: ${projectName}/frontend/`);
+      lines.push(`Project root: ${projectName}/frontend/`);
       lines.push('');
       lines.push('Requirements:');
       lines.push(sectionContent);
       lines.push('');
-      lines.push('Steps:');
-      lines.push('1. Use read_file to check existing src/App.tsx structure');
-      lines.push('2. Create component files in src/components/ for each UI component');
-      lines.push('3. Create hooks in src/hooks/ if needed for state management');
-      lines.push('4. Update src/App.tsx to import and use new components');
-      lines.push('5. Add API calls to connect to backend');
+      lines.push(`Steps (ALL paths must start with ${projectName}/frontend/):`);
+      lines.push(`1. Use read_file to check existing ${projectName}/frontend/src/App.tsx structure`);
+      lines.push(`2. Create component files in ${projectName}/frontend/src/components/ for each UI component`);
+      lines.push(`3. Create hooks in ${projectName}/frontend/src/hooks/ if needed for state management`);
+      lines.push(`4. Update ${projectName}/frontend/src/App.tsx to import and use new components`);
+      lines.push(`5. Add API calls to connect to backend`);
     }
 
     lines.push('');

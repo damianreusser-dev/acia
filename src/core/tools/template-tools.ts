@@ -191,6 +191,7 @@ export class PreviewTemplateTool implements Tool {
   }
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {
+    console.log('[GenerateProjectTool] execute called with:', JSON.stringify(params));
     const template = params.template as string;
     const projectName = params.projectName as string;
 

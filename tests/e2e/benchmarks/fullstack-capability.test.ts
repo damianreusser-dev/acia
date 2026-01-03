@@ -228,14 +228,28 @@ describeE2E('ACIA Fullstack Capability Benchmarks', () => {
 
         // Install backend dependencies
         const backendInstall = await runNpm(path.join(projectDir, 'backend'), ['install']);
+        if (!backendInstall.success) {
+          console.error('[Benchmark] Backend install failed:');
+          console.error('STDERR:', backendInstall.stderr);
+        }
         expect(backendInstall.success).toBe(true);
 
         // TypeScript compiles without errors
         const backendTypecheck = await runNpm(path.join(projectDir, 'backend'), ['run', 'typecheck']);
+        if (!backendTypecheck.success) {
+          console.error('[Benchmark] Backend typecheck failed:');
+          console.error('STDOUT:', backendTypecheck.stdout);
+          console.error('STDERR:', backendTypecheck.stderr);
+        }
         expect(backendTypecheck.success).toBe(true);
 
         // Tests pass
         const backendTests = await runNpm(path.join(projectDir, 'backend'), ['test']);
+        if (!backendTests.success) {
+          console.error('[Benchmark] Backend tests failed:');
+          console.error('STDOUT:', backendTests.stdout);
+          console.error('STDERR:', backendTests.stderr);
+        }
         expect(backendTests.success).toBe(true);
         expect(backendTests.stdout).toContain('passed'); // vitest outputs "X passed"
 
@@ -245,14 +259,28 @@ describeE2E('ACIA Fullstack Capability Benchmarks', () => {
 
         // Install frontend dependencies
         const frontendInstall = await runNpm(path.join(projectDir, 'frontend'), ['install']);
+        if (!frontendInstall.success) {
+          console.error('[Benchmark] Frontend install failed:');
+          console.error('STDERR:', frontendInstall.stderr);
+        }
         expect(frontendInstall.success).toBe(true);
 
         // TypeScript compiles without errors
         const frontendTypecheck = await runNpm(path.join(projectDir, 'frontend'), ['run', 'typecheck']);
+        if (!frontendTypecheck.success) {
+          console.error('[Benchmark] Frontend typecheck failed:');
+          console.error('STDOUT:', frontendTypecheck.stdout);
+          console.error('STDERR:', frontendTypecheck.stderr);
+        }
         expect(frontendTypecheck.success).toBe(true);
 
         // Build succeeds
         const frontendBuild = await runNpm(path.join(projectDir, 'frontend'), ['run', 'build']);
+        if (!frontendBuild.success) {
+          console.error('[Benchmark] Frontend build failed:');
+          console.error('STDOUT:', frontendBuild.stdout);
+          console.error('STDERR:', frontendBuild.stderr);
+        }
         expect(frontendBuild.success).toBe(true);
 
         // ============================================
