@@ -1,3 +1,4 @@
+import 'dotenv/config'; // Load .env immediately at module level
 import { defineConfig } from 'vitest/config';
 import { loadEnv } from 'vite';
 

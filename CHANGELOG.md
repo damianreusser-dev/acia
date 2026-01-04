@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-01-04 - Phase 6 Cleanup: E2E Test Improvements
+
+### Changed
+- **E2E Test Environment Loading**
+  - Added `import 'dotenv/config'` at top of E2E test files
+  - Ensures RUN_E2E_TESTS env var is loaded before `describe.runIf()` evaluation
+  - Also updated vitest.config.ts for immediate dotenv loading
+
+- **E2E Test Reliability**
+  - TypeScript checks now tolerate unused variable warnings (TS6133, TS6196)
+  - LLM-generated code may have minor linting issues that don't affect functionality
+  - Only fails on actual compile errors, not style warnings
+
+### Fixed
+- E2E tests now correctly detect RUN_E2E_TESTS from .env file
+- Removed false positives from strict TypeScript checks in LLM-generated code
+
 ## [0.6.3] - 2026-01-04 - Phase 6i: Deployment Reliability & Agent Workflow Fixes
 
 ### Added
