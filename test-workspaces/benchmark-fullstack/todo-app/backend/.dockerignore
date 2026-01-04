@@ -1,0 +1,32 @@
+# Dependencies
+node_modules
+npm-debug.log
+
+# Version control
+.git
+.gitignore
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Documentation
+*.md
+docs/
+
+# Tests
+tests/
+coverage/
+.nyc_output/
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts (we copy dist separately)
+# dist/
+
+# Misc
+*.log
+.DS_Store
