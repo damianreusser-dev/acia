@@ -157,7 +157,7 @@ User/Human
 - **Agent Memory**: Short-term context, long-term summaries
 - **Channels**: Message history for async communication
 
-## Current Phase: 6 - Coordination Refactor + Deployment & Operations (NOT STARTED)
+## Current Phase: 7 - Persona-Based QA & Validation (NEXT)
 
 ### Completed Phases
 
@@ -199,13 +199,26 @@ User/Human
 - Tool call enforcement (retry loop, metrics-based success)
 - OpenAI native function calling support
 - Benchmark test passes: creates complete fullstack todo app from single prompt
-- 535 unit tests passing (+26 E2E when API key set)
 
-### Next Milestone: Phase 6 - Coordination Refactor + Deployment & Operations
-- Refactor coordination layer (ITeam interface, TeamFactory, tool permissions)
-- DevOpsAgent for deployment artifacts
-- Docker and cloud deployment tools
-- MonitoringAgent and IncidentAgent for ops
+**Phase 6 - Coordination Refactor + Deployment & Operations** ✅
+- ITeam interface and TeamFactory for extensible team types
+- Tool permission system with AgentRole types
+- Shared utilities (scaffold-detector, response-parser)
+- DevOpsAgent for containerization and deployment
+- Docker tools (build, run, compose up/down, logs, ps, stop, rm)
+- Azure deployment tools (App Service, Static Web Apps, Container Apps)
+- MonitoringAgent for health checks and alerting
+- IncidentAgent for automated recovery (restart → rollback → escalate)
+- OpsDivision implementing ITeam for operations team
+- CEO.executeGoalWithDeployment() for build-deploy-monitor workflow
+- Jarvis deployment intent detection
+- 1006 unit tests passing (+34 E2E when API key/Docker/Azure set)
+
+### Next Milestone: Phase 7 - Persona-Based QA & Validation
+- PersonaQAAgent with context isolation
+- VisualQAAgent for UI testing with multimodal LLM
+- Oracle testing system for domain verification
+- App interaction tools (Puppeteer/Playwright)
 - See docs/ROADMAP.md for details
 
 ## Key Decisions Log
@@ -223,6 +236,12 @@ User/Human
 | 2026-01-02 | Jarvis as universal entry | Single point of contact for all user interactions |
 | 2026-01-02 | Pub/Sub channels | Flexible agent communication without tight coupling |
 | 2026-01-02 | Smart task routing | Jarvis handles simple tasks directly, delegates complex ones |
+| 2026-01-03 | ITeam interface | Abstract team contract for multi-team extensibility |
+| 2026-01-03 | TeamFactory pattern | Create teams by type without coupling to implementations |
+| 2026-01-03 | AgentRole types | Role-based tool access with backward compatibility |
+| 2026-01-03 | Azure focus over Railway/Vercel | More comprehensive cloud support with App Service + Container Apps |
+| 2026-01-04 | OpsDivision implements ITeam | Operations team (DevOps, Monitoring, Incident) uses same interface |
+| 2026-01-04 | Build-deploy-monitor workflow | CEO orchestrates Tech Team build → Ops Team deploy → Ops Team monitor |
 
 ## Notes for Claude
 

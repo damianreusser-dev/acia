@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-01-04 - Phase 6i: Deployment Reliability & Agent Workflow Fixes
+
+### Added
+- **Deployment Diagnostics Test Suite**
+  - D1: Agent Configuration tests (DevOpsAgent, BackendDevAgent initialization)
+  - D2: Docker Tool Definitions tests (docker_build, docker_compose_up/down)
+  - D3: DevOpsAgent System Prompt tests (Dockerfile creation instructions)
+  - D4: Dockerfile Validation Patterns tests (FROM, EXPOSE, volume mounts)
+  - D5: Task Detection tests (Docker/deployment keywords)
+  - D6: Health Check Patterns tests (Dockerfile HEALTHCHECK, compose healthcheck)
+  - Jarvis Deployment Intent Detection tests (local vs Azure keywords)
+  - 38 new unit tests for deployment diagnostics
+
+- **Agent File Path Handling**
+  - Team.activeProjectPath property to track scaffolded project location
+  - Team.extractProjectPath() method to extract path from tool results
+  - Team.isScaffoldTask() for scaffold task detection
+  - DevAgent PROJECT PATH CONTEXT injection in task prompts
+  - Agents instructed to use full paths like `${projectPath}/src/routes/`
+  - 4 new unit tests for path tracking
+
+- **Express Template Docker Files**
+  - Multi-stage Dockerfile (builder + production stages)
+  - Alpine-based production image with curl for health checks
+  - .dockerignore excludes node_modules, .git, .env, tests, coverage
+  - Health check configured for `/api/health` endpoint
+  - 2 new unit tests for Docker file generation
+
+- **Docker Templates**
+  - createNodeDockerfile() for pre-built applications
+  - createNodeDockerfileWithBuild() for multi-stage builds
+  - createDockerCompose() for generic compose files
+  - createSingleServiceCompose() for single backend service
+  - createFullstackCompose() for frontend + backend with health checks
+
+- **Compose Validator**
+  - Detects problematic volume mounts that overwrite /app or /usr/src/app
+  - Warns about missing health checks
+  - Warns about missing restart policies
+  - Validates services section exists
+
+- **Phase 6 Deployment Plan**
+  - docs/PHASE-6-DEPLOYMENT-PLAN.md with comprehensive root cause analysis
+  - D1-D6 diagnostic test hierarchy
+  - Sprint implementation order
+  - Success criteria and verification checklist
+
+### Changed
+- Team.executeDevTask() now injects project path into task context
+- DevAgent.buildTaskPrompt() includes PROJECT PATH CONTEXT section
+- Express template now includes Dockerfile and .dockerignore
+
+### Fixed
+- Agents no longer write files to workspace root after scaffolding
+- Files are written to correct project subdirectory paths
+- Volume mount issues in docker-compose.yml templates (no /app overwrites)
+
+**Test Counts:**
+- Total unit tests: 1006 passing
+- E2E tests: 34 passing (when API key/Docker/Azure available)
+- Phase 6 complete with ~425 new tests
+
 ## [0.6.2] - 2026-01-03 - Phase 6h: Azure Deployment + Build-Deploy-Monitor
 
 ### Added
