@@ -202,8 +202,8 @@ export class OpsDivision implements ITeam {
   private detectTaskType(description: string): 'deployment' | 'monitoring' | 'incident' | 'general' {
     const lowerDesc = description.toLowerCase();
 
-    // Deployment keywords
-    const deployKeywords = ['deploy', 'dockerfile', 'docker', 'container', 'railway', 'vercel', 'release', 'build'];
+    // Deployment keywords - updated to remove Railway/Vercel, add Azure
+    const deployKeywords = ['deploy', 'dockerfile', 'docker', 'container', 'azure', 'release', 'build', 'compose'];
     if (deployKeywords.some(k => lowerDesc.includes(k))) {
       return 'deployment';
     }
@@ -224,16 +224,53 @@ export class OpsDivision implements ITeam {
   }
 
   /**
+   * Detect the deployment target from task description.
+   */
+  private detectDeploymentTarget(description: string): 'local' | 'azure' | 'general' {
+    const lowerDesc = description.toLowerCase();
+
+    // Local Docker deployment
+    if (lowerDesc.includes('locally') || lowerDesc.includes('local') ||
+        lowerDesc.includes('docker compose') || lowerDesc.includes('docker-compose') ||
+        lowerDesc.includes('localhost')) {
+      return 'local';
+    }
+
+    // Azure deployment
+    if (lowerDesc.includes('azure') || lowerDesc.includes('azurewebsites') ||
+        lowerDesc.includes('containerapp') || lowerDesc.includes('staticwebapp')) {
+      return 'azure';
+    }
+
+    return 'general';
+  }
+
+  /**
    * Execute a deployment workflow.
    *
-   * 1. DevOps agent handles deployment
-   * 2. After deployment, monitoring agent verifies health
+   * Detects deployment target and routes appropriately:
+   * - Local: Uses docker-compose for local deployment
+   * - Azure: Uses Azure CLI tools for cloud deployment
+   * - General: Uses DevOpsAgent for standard deployment
+   *
+   * After deployment, monitoring agent verifies health.
    */
   private async executeDeploymentWorkflow(task: Task): Promise<TaskResult> {
     this.onProgress?.(`[OpsDivision] Executing deployment workflow`);
 
-    // Step 1: Deploy with DevOps agent
-    const deployResult = await this.devOpsAgent.executeTask(task);
+    const deployTarget = this.detectDeploymentTarget(task.description);
+    this.onProgress?.(`[OpsDivision] Detected deployment target: ${deployTarget}`);
+
+    let deployResult: TaskResult;
+
+    // Route to appropriate deployment handler
+    if (deployTarget === 'local') {
+      deployResult = await this.executeLocalDockerDeployment(task);
+    } else {
+      // Azure and general deployments go through DevOpsAgent
+      deployResult = await this.devOpsAgent.executeTask(task);
+    }
+
     if (!deployResult.success) {
       return deployResult;
     }
@@ -261,6 +298,65 @@ export class OpsDivision implements ITeam {
     }
 
     return deployResult;
+  }
+
+  /**
+   * Execute a local Docker deployment using docker-compose.
+   *
+   * This method:
+   * 1. Extracts project path and ports from task description
+   * 2. Creates/verifies docker-compose.yml exists
+   * 3. Runs docker_compose_up with build flag
+   * 4. Auto-registers monitoring targets for the deployed services
+   */
+  private async executeLocalDockerDeployment(task: Task): Promise<TaskResult> {
+    this.onProgress?.(`[OpsDivision] Executing local Docker deployment`);
+
+    // Extract ports from task description (default: 3000 frontend, 3001 backend)
+    const ports = this.extractPortsFromDescription(task.description);
+    this.onProgress?.(`[OpsDivision] Using ports - Frontend: ${ports.frontend}, Backend: ${ports.backend}`);
+
+    // Delegate to DevOpsAgent which has docker tools
+    const deployResult = await this.devOpsAgent.executeTask(task);
+
+    if (deployResult.success) {
+      // Auto-register monitoring targets for local deployment
+      this.onProgress?.(`[OpsDivision] Registering monitoring targets for local deployment`);
+
+      this.addMonitoringTarget({
+        name: 'local-backend',
+        url: `http://localhost:${ports.backend}`,
+        healthEndpoint: '/health',
+        checkInterval: 30,
+      });
+
+      this.addMonitoringTarget({
+        name: 'local-frontend',
+        url: `http://localhost:${ports.frontend}`,
+        healthEndpoint: '/',
+        checkInterval: 30,
+      });
+    }
+
+    return deployResult;
+  }
+
+  /**
+   * Extract frontend and backend ports from task description.
+   */
+  private extractPortsFromDescription(description: string): { frontend: number; backend: number } {
+    const defaults = { frontend: 3000, backend: 3001 };
+
+    // Look for port patterns like "port 3000" or "port: 3001"
+    const frontendMatch = description.match(/frontend.*?port[:\s]+(\d+)/i) ||
+                          description.match(/port[:\s]+(\d+).*?frontend/i);
+    const backendMatch = description.match(/backend.*?port[:\s]+(\d+)/i) ||
+                         description.match(/port[:\s]+(\d+).*?backend/i);
+
+    return {
+      frontend: frontendMatch?.[1] ? parseInt(frontendMatch[1], 10) : defaults.frontend,
+      backend: backendMatch?.[1] ? parseInt(backendMatch[1], 10) : defaults.backend,
+    };
   }
 
   /**

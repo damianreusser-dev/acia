@@ -481,8 +481,53 @@ describeE2E('ACIA Fullstack Capability Benchmarks', () => {
   });
 });
 
+// Check if Docker is available
+async function isDockerAvailable(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const proc = spawn('docker', ['--version'], { shell: true });
+    proc.on('close', (code) => resolve(code === 0));
+    proc.on('error', () => resolve(false));
+  });
+}
+
+// Run docker command
+async function runDocker(
+  args: string[],
+  cwd: string,
+  timeout = 300000
+): Promise<{ success: boolean; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    const proc = spawn('docker', args, {
+      cwd,
+      shell: true,
+      timeout,
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout?.on('data', (data) => (stdout += data.toString()));
+    proc.stderr?.on('data', (data) => (stderr += data.toString()));
+
+    proc.on('close', (code) => {
+      resolve({ success: code === 0, stdout, stderr });
+    });
+
+    proc.on('error', (err) => {
+      resolve({ success: false, stdout, stderr: err.message });
+    });
+  });
+}
+
 describeE2E('Phase 6: Production Quality Benchmarks', () => {
-  // These tests will be implemented as we progress
+  let HAS_DOCKER = false;
+
+  beforeAll(async () => {
+    HAS_DOCKER = await isDockerAvailable();
+    if (!HAS_DOCKER) {
+      console.log('[Benchmark] Docker not available, skipping Docker tests');
+    }
+  });
 
   it.skip('should create REST API with authentication', async () => {
     // TODO: Phase 6 benchmark
@@ -492,9 +537,132 @@ describeE2E('Phase 6: Production Quality Benchmarks', () => {
     // TODO: Phase 6 benchmark
   });
 
-  it.skip('should create Docker deployment', async () => {
-    // TODO: Phase 6 benchmark
-  });
+  /**
+   * BENCHMARK TEST: Docker Deployment (Phase 6i)
+   *
+   * Verifies that ACIA can create a deployable Docker setup.
+   * Uses diagnostic assertions D1-D6 to pinpoint failures.
+   */
+  it(
+    'should create Docker deployment with D1-D6 diagnostics',
+    async () => {
+      if (!HAS_DOCKER) {
+        console.log('[Benchmark] Skipping Docker test - Docker not available');
+        return;
+      }
+
+      const projectDir = path.join(BENCHMARK_WORKSPACE, 'todo-app', 'backend');
+
+      // ============================================
+      // D1: Structure verification
+      // ============================================
+      console.log('[D1] Verifying project structure...');
+      expect(await fileExists(path.join(projectDir, 'package.json'))).toBe(true);
+      expect(await fileExists(path.join(projectDir, 'Dockerfile'))).toBe(true);
+      expect(await fileExists(path.join(projectDir, '.dockerignore'))).toBe(true);
+      console.log('[D1] PASSED: Project structure exists');
+
+      // ============================================
+      // D2: Install verification
+      // ============================================
+      console.log('[D2] Verifying npm install...');
+      const installResult = await runNpm(projectDir, ['install']);
+      if (!installResult.success) {
+        console.error('[D2] npm install failed:', installResult.stderr);
+      }
+      expect(installResult.success).toBe(true);
+      console.log('[D2] PASSED: npm install succeeded');
+
+      // ============================================
+      // D3: Type safety
+      // ============================================
+      console.log('[D3] Verifying TypeScript compilation...');
+      const typecheckResult = await runNpm(projectDir, ['run', 'typecheck']);
+      if (!typecheckResult.success) {
+        console.error('[D3] typecheck failed:', typecheckResult.stdout, typecheckResult.stderr);
+      }
+      expect(typecheckResult.success).toBe(true);
+      console.log('[D3] PASSED: TypeScript compiles');
+
+      // ============================================
+      // D4: Tests
+      // ============================================
+      console.log('[D4] Verifying tests pass...');
+      const testResult = await runNpm(projectDir, ['test']);
+      if (!testResult.success) {
+        console.error('[D4] tests failed:', testResult.stdout, testResult.stderr);
+      }
+      expect(testResult.success).toBe(true);
+      console.log('[D4] PASSED: Tests pass');
+
+      // ============================================
+      // D5: Docker build
+      // ============================================
+      console.log('[D5] Verifying Docker build...');
+
+      // First build TypeScript
+      const buildResult = await runNpm(projectDir, ['run', 'build']);
+      if (!buildResult.success) {
+        console.error('[D5] npm build failed:', buildResult.stdout, buildResult.stderr);
+      }
+      expect(buildResult.success).toBe(true);
+
+      // Then build Docker image
+      const dockerBuildResult = await runDocker(
+        ['build', '-t', 'acia-benchmark-backend:test', '.'],
+        projectDir,
+        600000 // 10 minute timeout for Docker build
+      );
+      if (!dockerBuildResult.success) {
+        console.error('[D5] Docker build failed:', dockerBuildResult.stderr);
+      }
+      expect(dockerBuildResult.success).toBe(true);
+      console.log('[D5] PASSED: Docker build succeeded');
+
+      // ============================================
+      // D6: Health check
+      // ============================================
+      console.log('[D6] Verifying health check endpoint...');
+
+      // Start container
+      const runResult = await runDocker(
+        ['run', '-d', '--name', 'acia-benchmark-test', '-p', '3099:3001', 'acia-benchmark-backend:test'],
+        projectDir
+      );
+      if (!runResult.success) {
+        console.error('[D6] Docker run failed:', runResult.stderr);
+      }
+      expect(runResult.success).toBe(true);
+
+      try {
+        // Wait for container to be ready (max 30 seconds)
+        let healthy = false;
+        for (let i = 0; i < 30; i++) {
+          try {
+            const response = await fetch('http://localhost:3099/api/health');
+            if (response.ok) {
+              healthy = true;
+              break;
+            }
+          } catch {
+            // Container not ready yet
+          }
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        expect(healthy).toBe(true);
+        console.log('[D6] PASSED: Health check endpoint responds');
+      } finally {
+        // Cleanup container
+        await runDocker(['stop', 'acia-benchmark-test'], projectDir);
+        await runDocker(['rm', 'acia-benchmark-test'], projectDir);
+        await runDocker(['rmi', 'acia-benchmark-backend:test'], projectDir);
+      }
+
+      console.log('[BENCHMARK] All D1-D6 diagnostics PASSED');
+    },
+    900000 // 15 minute timeout for full Docker test
+  );
 
   it.skip('should achieve 80%+ test coverage', async () => {
     // TODO: Phase 6 benchmark

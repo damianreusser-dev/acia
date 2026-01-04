@@ -86,6 +86,37 @@ export interface MultiTeamResult {
   humanEscalationReason?: string;
 }
 
+/**
+ * Configuration for deployment after build
+ */
+export interface DeploymentConfig {
+  target: 'local' | 'azure-appservice' | 'azure-containers';
+  resourceGroup?: string;  // For Azure deployments
+  appName?: string;        // For Azure deployments
+  ports?: { frontend: number; backend: number };  // For local Docker
+  monitor: boolean;
+}
+
+/**
+ * Result from build-deploy-monitor workflow
+ */
+export interface CEODeploymentResult {
+  success: boolean;
+  buildResult: CEOResult;
+  deployResult?: {
+    success: boolean;
+    frontendUrl?: string;
+    backendUrl?: string;
+    error?: string;
+  };
+  monitoringResult?: {
+    active: boolean;
+    targets: string[];
+  };
+  escalatedToHuman: boolean;
+  humanEscalationReason?: string;
+}
+
 export class CEOAgent extends Agent {
   private wikiService?: WikiService;
   private activeProjects: Map<string, Project> = new Map();
@@ -240,6 +271,243 @@ export class CEOAgent extends Agent {
       escalatedToHuman,
       humanEscalationReason,
     };
+  }
+
+  /**
+   * Execute a goal with automatic deployment and monitoring
+   *
+   * This orchestrates the full build-deploy-monitor workflow:
+   * 1. Build Phase: Execute goal with tech team
+   * 2. Deploy Phase: Deploy using ops team
+   * 3. Monitor Phase: Set up health check monitoring
+   *
+   * @param goal - The goal to execute (e.g., "Create a fullstack todo app")
+   * @param teamName - The tech team to use for building (default: 'default')
+   * @param deploymentConfig - Configuration for deployment target and monitoring
+   */
+  async executeGoalWithDeployment(
+    goal: string,
+    teamName: string = 'default',
+    deploymentConfig: DeploymentConfig
+  ): Promise<CEODeploymentResult> {
+    // Step 1: Build Phase - Execute goal with tech team
+    const buildResult = await this.executeGoal(goal, teamName);
+
+    if (!buildResult.success) {
+      return {
+        success: false,
+        buildResult,
+        escalatedToHuman: buildResult.escalatedToHuman,
+        humanEscalationReason: buildResult.humanEscalationReason ?? 'Build phase failed',
+      };
+    }
+
+    // Step 2: Deploy Phase - Get or create ops team
+    let opsTeam = this.teams.get('ops');
+    if (!opsTeam) {
+      // Create ops team using TeamFactory
+      opsTeam = this.createTeam('ops', {
+        workspace: this.getWorkspaceFromTeam(teamName),
+        llmClient: this.getLLMClient(),
+        tools: this.getTools(),
+      }, 'ops');
+    }
+
+    // Create deployment task based on target
+    const deploymentTask = this.createDeploymentTask(deploymentConfig, buildResult);
+    const deployWorkflowResult = await opsTeam.executeTask(deploymentTask, 'high');
+
+    const deployResult: CEODeploymentResult['deployResult'] = {
+      success: deployWorkflowResult.success,
+      error: deployWorkflowResult.escalationReason,
+    };
+
+    // Extract URLs from deployment result
+    const urls = this.extractDeploymentUrls(deployWorkflowResult, deploymentConfig);
+    deployResult.frontendUrl = urls.frontendUrl;
+    deployResult.backendUrl = urls.backendUrl;
+
+    if (!deployWorkflowResult.success) {
+      return {
+        success: false,
+        buildResult,
+        deployResult,
+        escalatedToHuman: deployWorkflowResult.escalated ?? false,
+        humanEscalationReason: deployWorkflowResult.escalationReason ?? 'Deployment failed',
+      };
+    }
+
+    // Step 3: Monitor Phase - Set up health check monitoring
+    let monitoringResult: CEODeploymentResult['monitoringResult'] = undefined;
+
+    if (deploymentConfig.monitor && (deployResult.frontendUrl || deployResult.backendUrl)) {
+      const monitoringTargets: string[] = [];
+
+      // Register health check targets
+      if (deployResult.backendUrl) {
+        const healthUrl = `${deployResult.backendUrl}/health`;
+        monitoringTargets.push(healthUrl);
+
+        const monitorTask = `Start monitoring health endpoint: ${healthUrl}. Check every 30 seconds. Alert on 3 consecutive failures.`;
+        await opsTeam.executeTask(monitorTask, 'medium');
+      }
+
+      if (deployResult.frontendUrl) {
+        monitoringTargets.push(deployResult.frontendUrl);
+      }
+
+      monitoringResult = {
+        active: true,
+        targets: monitoringTargets,
+      };
+    }
+
+    return {
+      success: true,
+      buildResult,
+      deployResult,
+      monitoringResult,
+      escalatedToHuman: false,
+    };
+  }
+
+  /**
+   * Create a deployment task description based on config
+   */
+  private createDeploymentTask(config: DeploymentConfig, buildResult: CEOResult): string {
+    const projectPath = this.extractProjectPath(buildResult);
+
+    switch (config.target) {
+      case 'local':
+        const ports = config.ports ?? { frontend: 3000, backend: 3001 };
+        return `Deploy the project at ${projectPath} locally using Docker Compose.
+                Frontend should run on port ${ports.frontend}.
+                Backend should run on port ${ports.backend}.
+                Use docker_compose_up tool with build flag.
+                Wait for health checks to pass before completing.`;
+
+      case 'azure-appservice':
+        const rg = config.resourceGroup ?? 'acia-deployments';
+        const appName = config.appName ?? `acia-app-${Date.now()}`;
+        return `Deploy the backend at ${projectPath}/backend to Azure App Service.
+                Deploy the frontend at ${projectPath}/frontend to Azure Static Web Apps.
+                Resource Group: ${rg}
+                App Name: ${appName}
+                Use deploy_to_azure_app_service and deploy_to_azure_static_web tools.`;
+
+      case 'azure-containers':
+        const rgCont = config.resourceGroup ?? 'acia-deployments';
+        const appNameCont = config.appName ?? `acia-app-${Date.now()}`;
+        return `Deploy the project at ${projectPath} to Azure Container Apps.
+                Build and push Docker images, then deploy to Container Apps.
+                Resource Group: ${rgCont}
+                App Name: ${appNameCont}
+                Use deploy_to_azure_container_apps tool.`;
+
+      default:
+        return `Deploy the project at ${projectPath}`;
+    }
+  }
+
+  /**
+   * Extract project path from build result
+   */
+  private extractProjectPath(buildResult: CEOResult): string {
+    // Try to extract from project descriptions
+    for (const project of buildResult.projects) {
+      // Look for directory patterns in description
+      const dirMatch = project.description.match(/directory\s+["']?([^"'\s]+)["']?/i);
+      if (dirMatch && dirMatch[1]) {
+        return dirMatch[1];
+      }
+
+      // Look for project name patterns
+      const nameMatch = project.description.match(/projectName[=:]\s*["']?([a-zA-Z0-9_-]+)["']?/i);
+      if (nameMatch && nameMatch[1]) {
+        return nameMatch[1];
+      }
+    }
+
+    // Fallback to a default path based on project title
+    if (buildResult.projects.length > 0 && buildResult.projects[0]) {
+      const title = buildResult.projects[0].title.toLowerCase().replace(/\s+/g, '-');
+      return title;
+    }
+
+    return 'project';
+  }
+
+  /**
+   * Extract deployment URLs from workflow result
+   */
+  private extractDeploymentUrls(
+    result: WorkflowResult,
+    config: DeploymentConfig
+  ): { frontendUrl?: string; backendUrl?: string } {
+    // For local deployment, use localhost URLs
+    if (config.target === 'local') {
+      const ports = config.ports ?? { frontend: 3000, backend: 3001 };
+      return {
+        frontendUrl: `http://localhost:${ports.frontend}`,
+        backendUrl: `http://localhost:${ports.backend}`,
+      };
+    }
+
+    // For Azure, try to extract URLs from result output
+    const urls: { frontendUrl?: string; backendUrl?: string } = {};
+
+    // Search through dev results for URL patterns
+    for (const devResult of result.devResults) {
+      const output = devResult.result.output ?? '';
+
+      // Azure App Service URL pattern
+      const appServiceMatch = output.match(/https?:\/\/[\w-]+\.azurewebsites\.net/i);
+      if (appServiceMatch) {
+        urls.backendUrl = appServiceMatch[0];
+      }
+
+      // Azure Static Web Apps URL pattern
+      const swaMatch = output.match(/https?:\/\/[\w-]+\.azurestaticapps\.net/i);
+      if (swaMatch) {
+        urls.frontendUrl = swaMatch[0];
+      }
+
+      // Azure Container Apps URL pattern
+      const acaMatch = output.match(/https?:\/\/[\w-]+\.[\w-]+\.azurecontainerapps\.io/i);
+      if (acaMatch) {
+        urls.backendUrl = acaMatch[0];
+      }
+    }
+
+    return urls;
+  }
+
+  /**
+   * Get workspace path from a team
+   */
+  private getWorkspaceFromTeam(teamName: string): string {
+    const team = this.teams.get(teamName);
+    if (team) {
+      return team.getWorkspace();
+    }
+    return process.cwd();
+  }
+
+  /**
+   * Get the LLM client (exposed for ops team creation)
+   */
+  private getLLMClient(): LLMClient {
+    // Access the inherited llmClient from Agent base class
+    return (this as unknown as { llmClient: LLMClient }).llmClient;
+  }
+
+  /**
+   * Get the tools (exposed for ops team creation)
+   */
+  private getTools(): Tool[] {
+    // Agent base class stores tools in a Map<string, Tool>
+    const toolsMap = (this as unknown as { tools: Map<string, Tool> }).tools;
+    return toolsMap ? Array.from(toolsMap.values()) : [];
   }
 
   /**

@@ -220,6 +220,15 @@ export class DevAgent extends Agent {
 
     prompt += `**Workspace**: ${this.workspace}\n\n`;
 
+    // Add project path context if available (for proper file paths after scaffolding)
+    const projectPath = task.context?.projectPath;
+    if (typeof projectPath === 'string' && projectPath.length > 0) {
+      prompt += `## PROJECT PATH CONTEXT\n\n`;
+      prompt += `**Active Project**: ${projectPath}\n`;
+      prompt += `**IMPORTANT**: All file operations MUST be relative to this project path.\n`;
+      prompt += `For example, to write to src/routes/quotes.ts, use path: "${projectPath}/src/routes/quotes.ts"\n\n`;
+    }
+
     // Check if this is a scaffold task
     const isScaffoldTask = this.isScaffoldTask(task);
     const isCustomizeTask = this.isCustomizeTask(task);

@@ -11,3 +11,5 @@ export * from './git-tools.js';
 export * from './template-tools.js';
 export * from './docker-tools.js';
 export * from './deploy-tools.js';
+export * from './azure-tools.js';
+export * from './deployment-template-tools.js';

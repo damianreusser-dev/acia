@@ -800,4 +800,95 @@ EXECUTION_ORDER:
       expect(result.iterations).toBe(2);
     });
   });
+
+  describe('project path tracking', () => {
+    it('should detect scaffold tasks', () => {
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+      });
+
+      // Access private method via any cast for testing
+      const isScaffold = (team as any).isScaffoldTask;
+
+      expect(isScaffold({ title: 'Scaffold project', description: '' })).toBe(true);
+      expect(isScaffold({ title: 'Create project', description: '' })).toBe(true);
+      expect(isScaffold({ title: 'Use generate_project', description: '' })).toBe(true);
+      expect(isScaffold({ title: 'Add feature', description: '' })).toBe(false);
+    });
+
+    it('should extract project path from scaffold result', () => {
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+      });
+
+      // Access private method via any cast for testing
+      const extractPath = (team as any).extractProjectPath.bind(team);
+
+      // Test various output formats
+      expect(extractPath(
+        { success: true, output: 'Project created at: todo-app/backend' },
+        { title: 'Scaffold', description: '' }
+      )).toBe('todo-app/backend');
+
+      expect(extractPath(
+        { success: true, output: 'Created files in: my-api/backend' },
+        { title: 'Scaffold', description: '' }
+      )).toBe('my-api/backend');
+
+      // Fallback to projectName in context
+      expect(extractPath(
+        { success: true, output: '' },
+        { title: 'Scaffold', description: '', context: { projectName: 'my-project' } }
+      )).toBe('my-project/backend');
+    });
+
+    it('should inject project path into task context', async () => {
+      let capturedTask: any = null;
+
+      // Mock that captures the task passed to agent
+      const mockChat = vi.fn().mockImplementation(() => {
+        return Promise.resolve({
+          content: '<tool_call>{"tool": "write_file", "params": {"path": "src/file.ts", "content": "code"}}</tool_call>\nCompleted.',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        });
+      });
+
+      const customMockClient = { chat: mockChat } as unknown as LLMClient;
+
+      const team = new Team({
+        workspace: '/test/workspace',
+        llmClient: customMockClient,
+        tools: mockTools,
+      });
+
+      // Set active project path manually for testing
+      (team as any).activeProjectPath = 'my-project/backend';
+
+      // Create a mock task
+      const task = {
+        id: 'test-1',
+        type: 'implement' as const,
+        title: 'Add route',
+        description: 'Add a new route',
+        status: 'pending' as const,
+        priority: 'medium' as const,
+        createdBy: 'test',
+        attempts: 0,
+        maxAttempts: 3,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      // Execute task through the private method
+      await (team as any).executeDevTask(task);
+
+      // Verify project path was injected
+      expect(task.context?.projectPath).toBe('my-project/backend');
+    });
+  });
 });

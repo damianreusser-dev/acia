@@ -1,6 +1,6 @@
 # ACIA Project Status
 
-**Last Updated**: 2026-01-03
+**Last Updated**: 2026-01-04
 
 ---
 
@@ -427,7 +427,115 @@
 - [x] 21 incident-recovery benchmark tests (15 unit + 6 E2E placeholder)
 - [x] 18 OpsDivision unit tests
 - [x] **Total Phase 6c-6g: 90 new tests passing**
-- [x] **Total Phase 6: 182 new tests passing**
+
+### Phase 6h - Azure Deployment + Build-Deploy-Monitor (COMPLETED)
+
+**Goal**: Enable Jarvis to build a fullstack app, deploy it (locally via Docker or to Azure), and monitor it automatically.
+
+**User Request Flow**: "Create fullstack app and deploy it" → get working URL with active monitoring
+
+#### Azure Deploy Tools (COMPLETED)
+- [x] DeployToAzureAppServiceTool - Deploy Node.js backend to Azure App Service
+- [x] DeployToAzureStaticWebTool - Deploy React frontend to Azure Static Web Apps
+- [x] DeployToAzureContainerAppsTool - Deploy Docker containers to Azure Container Apps
+- [x] GetAzureDeploymentStatusTool - Check deployment status
+- [x] GetAzureDeploymentLogsTool - Get deployment logs
+- [x] DeleteAzureDeploymentTool - Clean up Azure resources
+- [x] All tools have roles: ['devops', 'ops']
+- [x] Removed Railway/Vercel tools (Azure + local focus)
+
+#### CEO Build-Deploy-Monitor Workflow (COMPLETED)
+- [x] DeploymentConfig interface for local/azure-appservice/azure-containers
+- [x] CEODeploymentResult interface for build + deploy + monitoring results
+- [x] executeGoalWithDeployment() method in CEOAgent
+- [x] Sequential workflow: Tech Team builds → Ops Team deploys → Ops Team monitors
+
+#### Local Docker Deployment Flow (COMPLETED)
+- [x] OpsDivision.detectDeploymentTarget() for local/azure/general routing
+- [x] executeLocalDockerDeployment() method with docker-compose
+- [x] extractPortsFromDescription() for custom port configuration
+- [x] Auto-registration of monitoring targets after local deployment
+- [x] Default ports: frontend 3000, backend 3001
+
+#### Jarvis Integration (COMPLETED)
+- [x] detectDeploymentIntent() for deploy/launch/host keywords
+- [x] extractProjectName() from natural language requests
+- [x] createCompanyAndDeploy() for build-deploy-monitor flow
+- [x] generateDeploymentSummary() for user-friendly response
+- [x] JarvisResult extended with deploymentResult and urls fields
+- [x] Tools auto-included: docker, deploy, azure tools
+
+#### E2E Benchmark Tests (COMPLETED)
+- [x] tests/e2e/benchmarks/build-deploy-monitor.test.ts
+- [x] Local Docker deployment test (requires Docker Desktop)
+- [x] Monitoring auto-setup test
+- [x] Azure App Service deployment test (requires Azure CLI + credentials)
+- [x] Azure Container Apps deployment test
+- [x] Incident detection test
+- [x] Auto-restart failed container test
+- [x] Deployment intent detection tests
+
+#### Test Results
+- [x] 53 Azure tools unit tests
+- [x] 9 CEO deployment workflow unit tests
+- [x] 18+ OpsDivision unit tests (updated)
+- [x] 8 E2E benchmark tests (conditional on Docker/Azure)
+- [x] **Total Phase 6h: ~60 new tests**
+- [x] **Total Phase 6: ~240 new tests**
+
+### Phase 6i - Deployment Reliability & Agent Workflow Fixes (COMPLETED)
+
+**Goal**: Create diagnostic infrastructure and fix reliability issues for local Docker deployment.
+
+**Root Causes Found from E2E Testing**:
+1. DevOpsAgent wrote compose.yml but not Dockerfile
+2. BackendDevAgent scaffolded app but didn't implement todos routes
+3. compose.yml had volume mount that overwrote built `/dist` folder
+4. 15-minute timeout wasn't enough for full agent hierarchy workflow
+5. **NEW**: Agents wrote files to wrong paths after scaffolding (workspace root instead of project subdirectory)
+
+#### Deployment Diagnostics (COMPLETED)
+- [x] `tests/unit/deployment-diagnostics.test.ts` - 38 diagnostic tests
+- [x] D1: Agent Configuration tests
+- [x] D2: Docker Tool Definitions tests
+- [x] D3: DevOpsAgent System Prompt tests
+- [x] D4: Dockerfile Validation Patterns tests
+- [x] D5: Task Detection tests
+- [x] D6: Health Check Patterns tests
+- [x] Deploy Tools Validation tests
+- [x] Docker Template Validation tests
+- [x] Jarvis Deployment Intent Detection tests
+
+#### Phase 6 Deployment Plan (COMPLETED)
+- [x] `docs/PHASE-6-DEPLOYMENT-PLAN.md` - Comprehensive plan document
+- [x] Root cause analysis from E2E testing
+- [x] D1-D6 diagnostic test hierarchy defined
+- [x] Phase 6a-6f subphases planned
+- [x] Sprint 1-3 implementation order
+- [x] Success criteria and verification checklist
+
+#### Agent File Path Handling Fix (COMPLETED)
+- [x] **Team.ts**: Added `activeProjectPath` property to track scaffolded project location
+- [x] **Team.ts**: `executeDevTask()` now injects project path into task context
+- [x] **Team.ts**: `isScaffoldTask()` detects scaffold/generation tasks
+- [x] **Team.ts**: `extractProjectPath()` extracts path from scaffold tool results
+- [x] **DevAgent.ts**: `buildTaskPrompt()` includes PROJECT PATH CONTEXT section
+- [x] **DevAgent.ts**: Instructs agents to use full project paths for file operations
+- [x] Unit tests added for project path tracking (`team.test.ts`)
+
+#### Express Template Docker Files (COMPLETED)
+- [x] **Dockerfile**: Multi-stage build (builder + production stages)
+- [x] **Dockerfile**: Health check with `curl -f http://localhost:3001/api/health`
+- [x] **Dockerfile**: RUN apk add curl for alpine image
+- [x] **.dockerignore**: Excludes node_modules, .git, .env, tests, coverage, *.md
+- [x] Unit tests added for Docker file generation (`templates.test.ts`)
+
+#### Full Agent Workflow Test (COMPLETED)
+- [x] Created `test-workspaces/agent-generated-test/` for manual E2E testing
+- [x] Verified full Jarvis → CEO → Team → Dev/QA workflow
+- [x] Agent successfully created Express API with quotes endpoint
+- [x] Docker build and run works with generated Dockerfile
+- [x] All API endpoints verified (health, quotes CRUD)
 
 ### Blocked
 None
@@ -435,6 +543,84 @@ None
 ---
 
 ## Recent Changes
+
+### 2026-01-04 (Phase 6i - Deployment Reliability & Agent Workflow Fixes)
+- **Full Agent Workflow Test** - Created end-to-end test of entire agent hierarchy
+  - Created `test-workspaces/agent-generated-test/` workspace
+  - Ran full Jarvis → CEO → Team → Dev/QA workflow for quotes API
+  - Identified file path handling bug: agents wrote to workspace root instead of project subdirectory
+  - Verified Docker deployment works with generated files
+- **Agent File Path Handling Fix** - Ensures agents write to correct project paths
+  - Added `activeProjectPath` property to Team class
+  - Team tracks project path after scaffold tasks complete
+  - Injects project path into task context for subsequent tasks
+  - DevAgent includes PROJECT PATH CONTEXT in task prompts
+  - Agents now instructed to use full paths like `${projectPath}/src/routes/quotes.ts`
+- **Express Template Docker Files** - Templates now include deployment-ready Docker config
+  - Multi-stage Dockerfile (builder + production) for optimized images
+  - Alpine-based production image with curl for health checks
+  - .dockerignore excludes node_modules, tests, coverage, .git, .env
+  - Health check configured for `/api/health` endpoint
+- **Unit Tests Added** for new functionality
+  - Docker file generation tests in `templates.test.ts`
+  - Project path tracking tests in `team.test.ts`
+  - Scaffold task detection tests
+  - Path extraction from tool results tests
+- **Total: 1006 unit tests passing (+34 E2E when dependencies available)**
+
+### 2026-01-04 (Phase 6i - Deployment Diagnostics & Planning)
+- **Deployment Diagnostic Tests** created for Phase 6 reliability
+  - 38 unit tests covering D1-D6 deployment diagnostic hierarchy
+  - D1: Agent Configuration (DevOpsAgent, BackendDevAgent)
+  - D2: Docker Tool Definitions (docker_build, docker_compose_up/down)
+  - D3: DevOpsAgent System Prompt (Dockerfile creation)
+  - D4: Dockerfile Validation Patterns (FROM, EXPOSE, volume mounts)
+  - D5: Task Detection (Docker/deployment keywords)
+  - D6: Health Check Patterns (Dockerfile HEALTHCHECK, compose healthcheck)
+  - Deploy Tools Validation (health_check, wait_for_health)
+  - Docker Template Validation (structure, layer caching, restart policies)
+  - Jarvis Deployment Intent Detection (local/Azure keywords)
+- **Phase 6 Deployment Plan** created
+  - docs/PHASE-6-DEPLOYMENT-PLAN.md - Comprehensive planning document
+  - Root cause analysis from E2E testing:
+    1. DevOpsAgent wrote compose.yml but not Dockerfile
+    2. BackendDevAgent scaffolded but didn't create todos routes
+    3. compose.yml volume mount overwrote built /dist folder
+    4. 15-minute timeout insufficient for full agent hierarchy
+  - Subphases defined: 6a Docker Templates, 6b BuildContext, 6c DevOpsAgent, 6d Validation, 6e E2E
+  - Sprint implementation order with test counts
+  - Success criteria and verification checklist
+- **Manual E2E Verification** completed
+  - Created missing Dockerfile for test-workspaces/benchmark-deploy/deploy-local/backend
+  - Created todos.ts routes with GET/POST/DELETE endpoints
+  - Fixed compose.yml volume mount bug
+  - Successfully built and ran Docker container at localhost:3001
+  - Verified all API endpoints work (health, todos CRUD)
+- **Total: 893 unit tests passing (+34 E2E when dependencies available)**
+
+### 2026-01-03 (Phase 6h - Azure Deployment + Build-Deploy-Monitor)
+- **Azure Deploy Tools** created for Azure cloud deployment
+  - DeployToAzureAppServiceTool, DeployToAzureStaticWebTool, DeployToAzureContainerAppsTool
+  - GetAzureDeploymentStatusTool, GetAzureDeploymentLogsTool, DeleteAzureDeploymentTool
+  - All tools have ['devops', 'ops'] roles
+  - Removed Railway/Vercel tools (Azure + local focus)
+- **CEO executeGoalWithDeployment()** method added
+  - DeploymentConfig interface for local/azure-appservice/azure-containers
+  - CEODeploymentResult with build + deploy + monitoring results
+  - Sequential workflow: Tech builds → Ops deploys → Ops monitors
+- **OpsDivision Local Docker deployment** enhanced
+  - detectDeploymentTarget() for local/azure/general routing
+  - executeLocalDockerDeployment() with auto-monitoring setup
+  - extractPortsFromDescription() for custom ports
+- **Jarvis deployment integration** added
+  - detectDeploymentIntent() for deploy/launch/host keywords
+  - createCompanyAndDeploy() for build-deploy-monitor flow
+  - generateDeploymentSummary() for user-friendly response
+- **Build-Deploy-Monitor benchmark tests** created
+  - Local Docker deployment tests (requires Docker Desktop)
+  - Azure deployment tests (requires Azure CLI + credentials)
+  - Incident response and auto-restart tests
+- **Total: 855 unit tests passing (+8 E2E deploy tests when Docker/Azure available)**
 
 ### 2026-01-03 (Phase 6c-6g - Operations Agents & OpsDivision)
 - **MonitoringAgent** created for health check monitoring
@@ -911,7 +1097,13 @@ None
 | IncidentAgent Tests | All pass | 32/32 |
 | OpsDivision Tests | All pass | 18/18 |
 | Phase 6c-6g Benchmark Tests | All pass | 21/21 |
-| Total Tests | All pass | 867 (+26 E2E when API key set) |
+| Azure Tools Tests | All pass | 53/53 |
+| CEO Deployment Tests | All pass | 9/9 |
+| Phase 6h Benchmark Tests | All pass | 8/8 (when Docker/Azure available) |
+| Deployment Diagnostics Tests | All pass | 38/38 |
+| Agent Path Tracking Tests | All pass | 4/4 |
+| Docker Template Tests | All pass | 2/2 |
+| Total Tests | All pass | 1006 unit (+34 E2E when API key/Docker/Azure set) |
 | CI Status | Passing | Passing |
 
 ---

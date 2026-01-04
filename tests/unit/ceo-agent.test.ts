@@ -595,4 +595,334 @@ TEAM: teamB
       expect(status.projectsByStatus).toHaveProperty('blocked');
     });
   });
+
+  describe('executeGoalWithDeployment', () => {
+    it('should fail when build phase fails', async () => {
+      (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: `PROJECTS:
+1. [Build App] | [Priority: high] | Build the application`,
+        stopReason: 'end_turn',
+        usage: { inputTokens: 100, outputTokens: 200 },
+      });
+
+      const mockTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: false,
+          escalated: false,
+          iterations: 1,
+        } as WorkflowResult),
+        getWorkspace: vi.fn().mockReturnValue('/test'),
+      } as unknown as Team;
+
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('default', mockTeam);
+
+      const result = await ceoAgent.executeGoalWithDeployment('Build and deploy app', 'default', {
+        target: 'local',
+        monitor: true,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.buildResult.success).toBe(false);
+      expect(result.deployResult).toBeUndefined();
+    });
+
+    it('should proceed to deployment after successful build', async () => {
+      (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: `PROJECTS:
+1. [Build App] | [Priority: high] | Build the application in directory "todo-app"`,
+        stopReason: 'end_turn',
+        usage: { inputTokens: 100, outputTokens: 200 },
+      });
+
+      const mockTechTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: true,
+          iterations: 1,
+          devResults: [],
+          qaResults: [],
+          task: { title: 'Build App', description: 'Build the application' },
+        } as WorkflowResult),
+        getWorkspace: vi.fn().mockReturnValue('/test'),
+      } as unknown as Team;
+
+      const mockOpsTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: true,
+          iterations: 1,
+          devResults: [{ task: {}, result: { success: true, output: '' } }],
+          qaResults: [],
+        } as WorkflowResult),
+        getWorkspace: vi.fn().mockReturnValue('/test'),
+      } as unknown as Team;
+
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('default', mockTechTeam);
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('ops', mockOpsTeam);
+
+      const result = await ceoAgent.executeGoalWithDeployment('Build and deploy app', 'default', {
+        target: 'local',
+        ports: { frontend: 3000, backend: 3001 },
+        monitor: false,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.buildResult.success).toBe(true);
+      expect(result.deployResult?.success).toBe(true);
+      expect(mockOpsTeam.executeTask).toHaveBeenCalled();
+    });
+
+    it('should return localhost URLs for local deployment', async () => {
+      (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: `PROJECTS:
+1. [Build App] | [Priority: high] | Build the application`,
+        stopReason: 'end_turn',
+        usage: { inputTokens: 100, outputTokens: 200 },
+      });
+
+      const mockTechTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: true,
+          iterations: 1,
+          devResults: [],
+          qaResults: [],
+          task: { title: 'Build App', description: 'Build the application' },
+        } as WorkflowResult),
+        getWorkspace: vi.fn().mockReturnValue('/test'),
+      } as unknown as Team;
+
+      const mockOpsTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: true,
+          iterations: 1,
+          devResults: [{ task: {}, result: { success: true, output: '' } }],
+          qaResults: [],
+        } as WorkflowResult),
+        getWorkspace: vi.fn().mockReturnValue('/test'),
+      } as unknown as Team;
+
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('default', mockTechTeam);
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('ops', mockOpsTeam);
+
+      const result = await ceoAgent.executeGoalWithDeployment('Build and deploy app', 'default', {
+        target: 'local',
+        ports: { frontend: 4000, backend: 4001 },
+        monitor: false,
+      });
+
+      expect(result.deployResult?.frontendUrl).toBe('http://localhost:4000');
+      expect(result.deployResult?.backendUrl).toBe('http://localhost:4001');
+    });
+
+    it('should handle deployment failure', async () => {
+      (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: `PROJECTS:
+1. [Build App] | [Priority: high] | Build the application`,
+        stopReason: 'end_turn',
+        usage: { inputTokens: 100, outputTokens: 200 },
+      });
+
+      const mockTechTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: true,
+          iterations: 1,
+          devResults: [],
+          qaResults: [],
+          task: { title: 'Build App', description: 'Build the application' },
+        } as WorkflowResult),
+        getWorkspace: vi.fn().mockReturnValue('/test'),
+      } as unknown as Team;
+
+      const mockOpsTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: false,
+          escalated: true,
+          escalationReason: 'Docker not available',
+          iterations: 1,
+          devResults: [],
+          qaResults: [],
+        } as WorkflowResult),
+        getWorkspace: vi.fn().mockReturnValue('/test'),
+      } as unknown as Team;
+
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('default', mockTechTeam);
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('ops', mockOpsTeam);
+
+      const result = await ceoAgent.executeGoalWithDeployment('Build and deploy app', 'default', {
+        target: 'local',
+        monitor: false,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.buildResult.success).toBe(true);
+      expect(result.deployResult?.success).toBe(false);
+      expect(result.deployResult?.error).toBe('Docker not available');
+    });
+
+    it('should set up monitoring when enabled', async () => {
+      (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: `PROJECTS:
+1. [Build App] | [Priority: high] | Build the application`,
+        stopReason: 'end_turn',
+        usage: { inputTokens: 100, outputTokens: 200 },
+      });
+
+      const mockTechTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: true,
+          iterations: 1,
+          devResults: [],
+          qaResults: [],
+          task: { title: 'Build App', description: 'Build the application' },
+        } as WorkflowResult),
+        getWorkspace: vi.fn().mockReturnValue('/test'),
+      } as unknown as Team;
+
+      const mockOpsTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: true,
+          iterations: 1,
+          devResults: [{ task: {}, result: { success: true, output: '' } }],
+          qaResults: [],
+        } as WorkflowResult),
+        getWorkspace: vi.fn().mockReturnValue('/test'),
+      } as unknown as Team;
+
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('default', mockTechTeam);
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('ops', mockOpsTeam);
+
+      const result = await ceoAgent.executeGoalWithDeployment('Build and deploy app', 'default', {
+        target: 'local',
+        ports: { frontend: 3000, backend: 3001 },
+        monitor: true,
+      });
+
+      expect(result.monitoringResult?.active).toBe(true);
+      expect(result.monitoringResult?.targets).toContain('http://localhost:3001/health');
+      // Ops team should be called for deployment + monitoring
+      expect(mockOpsTeam.executeTask).toHaveBeenCalledTimes(2);
+    });
+
+    it('should create deployment task for Azure App Service', async () => {
+      (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: `PROJECTS:
+1. [Build App] | [Priority: high] | Build in directory "my-app"`,
+        stopReason: 'end_turn',
+        usage: { inputTokens: 100, outputTokens: 200 },
+      });
+
+      const mockTechTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: true,
+          iterations: 1,
+          devResults: [],
+          qaResults: [],
+          task: { title: 'Build App', description: 'Build in directory "my-app"' },
+        } as WorkflowResult),
+        getWorkspace: vi.fn().mockReturnValue('/test'),
+      } as unknown as Team;
+
+      const mockOpsTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: true,
+          iterations: 1,
+          devResults: [{ task: {}, result: { success: true, output: 'https://my-app.azurewebsites.net deployed' } }],
+          qaResults: [],
+        } as WorkflowResult),
+        getWorkspace: vi.fn().mockReturnValue('/test'),
+      } as unknown as Team;
+
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('default', mockTechTeam);
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('ops', mockOpsTeam);
+
+      const result = await ceoAgent.executeGoalWithDeployment('Build and deploy app', 'default', {
+        target: 'azure-appservice',
+        resourceGroup: 'my-rg',
+        appName: 'my-app',
+        monitor: false,
+      });
+
+      expect(result.success).toBe(true);
+      // Verify ops team was called with Azure-specific task
+      const deployCall = mockOpsTeam.executeTask.mock.calls[0];
+      expect(deployCall[0]).toContain('Azure App Service');
+      expect(deployCall[0]).toContain('my-rg');
+      expect(deployCall[0]).toContain('my-app');
+    });
+
+    it('should extract Azure URLs from deployment result', async () => {
+      (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: `PROJECTS:
+1. [Build App] | [Priority: high] | Build the application`,
+        stopReason: 'end_turn',
+        usage: { inputTokens: 100, outputTokens: 200 },
+      });
+
+      const mockTechTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: true,
+          iterations: 1,
+          devResults: [],
+          qaResults: [],
+          task: { title: 'Build App', description: 'Build the application' },
+        } as WorkflowResult),
+        getWorkspace: vi.fn().mockReturnValue('/test'),
+      } as unknown as Team;
+
+      const mockOpsTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: true,
+          iterations: 1,
+          devResults: [
+            { task: {}, result: { success: true, output: 'Backend deployed to https://myapp-api.azurewebsites.net' } },
+            { task: {}, result: { success: true, output: 'Frontend deployed to https://myapp-web.azurestaticapps.net' } },
+          ],
+          qaResults: [],
+        } as WorkflowResult),
+        getWorkspace: vi.fn().mockReturnValue('/test'),
+      } as unknown as Team;
+
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('default', mockTechTeam);
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('ops', mockOpsTeam);
+
+      const result = await ceoAgent.executeGoalWithDeployment('Build and deploy app', 'default', {
+        target: 'azure-appservice',
+        resourceGroup: 'my-rg',
+        appName: 'my-app',
+        monitor: false,
+      });
+
+      expect(result.deployResult?.backendUrl).toBe('https://myapp-api.azurewebsites.net');
+      expect(result.deployResult?.frontendUrl).toBe('https://myapp-web.azurestaticapps.net');
+    });
+
+    it('should auto-create ops team if not registered', async () => {
+      (mockLLMClient.chat as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: `PROJECTS:
+1. [Build App] | [Priority: high] | Build the application`,
+        stopReason: 'end_turn',
+        usage: { inputTokens: 100, outputTokens: 200 },
+      });
+
+      const mockTechTeam = {
+        executeTask: vi.fn().mockResolvedValue({
+          success: true,
+          iterations: 1,
+          devResults: [],
+          qaResults: [],
+          task: { title: 'Build App', description: 'Build the application' },
+        } as WorkflowResult),
+        getWorkspace: vi.fn().mockReturnValue('/test'),
+      } as unknown as Team;
+
+      (ceoAgent as unknown as { teams: Map<string, Team> }).teams.set('default', mockTechTeam);
+      // Note: ops team is NOT registered
+
+      const result = await ceoAgent.executeGoalWithDeployment('Build and deploy app', 'default', {
+        target: 'local',
+        monitor: false,
+      });
+
+      // CEO should auto-create ops team
+      expect(ceoAgent.getTeam('ops')).toBeDefined();
+    });
+  });
 });

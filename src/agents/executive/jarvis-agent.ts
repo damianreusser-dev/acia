@@ -9,12 +9,16 @@
 import { Agent, AgentConfig } from '../base/agent.js';
 import { Tool } from '../../core/tools/types.js';
 import { LLMClient, LLMProvider } from '../../core/llm/client.js';
-import { CEOAgent, CEOResult } from './ceo-agent.js';
+import { CEOAgent, CEOResult, DeploymentConfig, CEODeploymentResult } from './ceo-agent.js';
 import { WikiService } from '../../core/wiki/wiki-service.js';
 import { createFileTools } from '../../core/tools/file-tools.js';
 import { createExecTools } from '../../core/tools/exec-tools.js';
 import { createGitTools } from '../../core/tools/git-tools.js';
 import { createTemplateTools } from '../../core/tools/template-tools.js';
+import { createDockerTools } from '../../core/tools/docker-tools.js';
+import { createDeployTools } from '../../core/tools/deploy-tools.js';
+import { createAzureDeployTools } from '../../core/tools/azure-tools.js';
+import { createDeploymentTemplateTools } from '../../core/tools/deployment-template-tools.js';
 import { getMetrics as getGlobalMetrics } from '../../core/metrics/metrics.js';
 
 const JARVIS_SYSTEM_PROMPT = `You are JARVIS, the universal AI assistant and entry point for the ACIA (Autonomous Company Intelligence Architecture) system.
@@ -83,9 +87,15 @@ export interface JarvisResult {
   response: string;
   delegatedTo?: string;
   ceoResult?: CEOResult;
+  deploymentResult?: CEODeploymentResult;
   newCompanyCreated?: boolean;
   escalatedToHuman: boolean;
   humanEscalationReason?: string;
+  /** URLs for deployed services */
+  urls?: {
+    frontendUrl?: string;
+    backendUrl?: string;
+  };
 }
 
 export interface ConversationEntry {
@@ -134,7 +144,11 @@ export class JarvisAgent extends Agent {
       const execTools = createExecTools(workspace, ['test', 'build', 'typecheck', 'dev', 'lint']);
       const gitTools = createGitTools(workspace);
       const templateTools = createTemplateTools(workspace);
-      tools = [...fileTools, ...execTools, ...gitTools, ...templateTools];
+      const dockerTools = createDockerTools();
+      const deployTools = createDeployTools();
+      const azureTools = createAzureDeployTools();
+      const deploymentTemplateTools = createDeploymentTemplateTools(workspace);
+      tools = [...fileTools, ...execTools, ...gitTools, ...templateTools, ...dockerTools, ...deployTools, ...azureTools, ...deploymentTemplateTools];
     }
 
     const agentConfig: AgentConfig = {
@@ -189,6 +203,13 @@ export class JarvisAgent extends Agent {
           analysis.companyName!,
           analysis.domain!
         );
+      } else if (analysis.action === 'create_company_with_deploy') {
+        result = await this.createCompanyAndDeploy(
+          request,
+          analysis.companyName!,
+          analysis.domain!,
+          analysis.deployTarget!
+        );
       } else if (analysis.action === 'status') {
         result = this.getStatusReport();
       } else if (analysis.action === 'direct_response') {
@@ -236,12 +257,24 @@ export class JarvisAgent extends Agent {
    * Analyze a request to determine the appropriate action
    */
   private async analyzeRequest(request: string): Promise<{
-    action: 'delegate' | 'create_company' | 'status' | 'direct_response';
+    action: 'delegate' | 'create_company' | 'create_company_with_deploy' | 'status' | 'direct_response';
     companyId?: string;
     companyName?: string;
     domain?: string;
     response?: string;
+    deployTarget?: DeploymentConfig['target'];
   }> {
+    // Check for deployment intent first (fast path)
+    const deploymentIntent = this.detectDeploymentIntent(request);
+    if (deploymentIntent.hasDeployIntent) {
+      return {
+        action: 'create_company_with_deploy',
+        companyName: this.extractProjectName(request) || 'DeployProject',
+        domain: 'Fullstack Application with Deployment',
+        deployTarget: deploymentIntent.target,
+      };
+    }
+
     // Build context about existing companies
     const companiesContext = this.buildCompaniesContext();
 
@@ -283,6 +316,71 @@ RESPONSE: [direct answer, if direct_response or status]`;
 
     const response = await this.processMessage(prompt);
     return this.parseAnalysisResponse(response);
+  }
+
+  /**
+   * Detect deployment intent from request
+   */
+  private detectDeploymentIntent(request: string): {
+    hasDeployIntent: boolean;
+    target: DeploymentConfig['target'];
+  } {
+    const lowerRequest = request.toLowerCase();
+
+    // Keywords that indicate deployment intent
+    const deployKeywords = ['deploy', 'launch', 'host', 'put online', 'run it', 'make it live'];
+    const hasDeployIntent = deployKeywords.some(k => lowerRequest.includes(k));
+
+    if (!hasDeployIntent) {
+      return { hasDeployIntent: false, target: 'local' };
+    }
+
+    // Determine deployment target
+    const azureKeywords = ['azure', 'cloud', 'production', 'app service'];
+    const localKeywords = ['locally', 'docker', 'local', 'localhost'];
+
+    if (localKeywords.some(k => lowerRequest.includes(k))) {
+      return { hasDeployIntent: true, target: 'local' };
+    }
+
+    if (azureKeywords.some(k => lowerRequest.includes(k))) {
+      // Check for container apps vs app service
+      if (lowerRequest.includes('container')) {
+        return { hasDeployIntent: true, target: 'azure-containers' };
+      }
+      return { hasDeployIntent: true, target: 'azure-appservice' };
+    }
+
+    // Default to local if just "deploy" is mentioned
+    return { hasDeployIntent: true, target: 'local' };
+  }
+
+  /**
+   * Extract project name from request
+   */
+  private extractProjectName(request: string): string | undefined {
+    // Common patterns for project names
+    const patterns = [
+      /create\s+(?:a\s+)?(?:fullstack\s+)?(\w+)\s+app/i,
+      /build\s+(?:a\s+)?(\w+)\s+application/i,
+      /(?:todo|task|note|blog|chat)\s+app/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = request.match(pattern);
+      if (match?.[1]) {
+        return match[1].charAt(0).toUpperCase() + match[1].slice(1) + 'App';
+      }
+      if (match) {
+        // For patterns like "todo app", extract the type
+        const typeMatch = request.match(/(todo|task|note|blog|chat)/i);
+        if (typeMatch?.[1]) {
+          return typeMatch[1].charAt(0).toUpperCase() + typeMatch[1].slice(1) + 'App';
+        }
+      }
+    }
+
+    return undefined;
   }
 
   /**
@@ -423,6 +521,154 @@ RESPONSE: [direct answer, if direct_response or status]`;
       newCompanyCreated: true,
       response: `Created new company "${companyName}" for ${domain}.\n\n${delegateResult.response}`,
     };
+  }
+
+  /**
+   * Create a new company, build the project, and deploy it
+   *
+   * This orchestrates the full build-deploy-monitor workflow:
+   * 1. Create company with CEO and teams
+   * 2. Build the application via tech team
+   * 3. Deploy via ops team
+   * 4. Set up monitoring
+   */
+  private async createCompanyAndDeploy(
+    request: string,
+    companyName: string,
+    domain: string,
+    deployTarget: DeploymentConfig['target']
+  ): Promise<JarvisResult> {
+    const companyId = `company_${Date.now().toString(36)}`;
+
+    // Create new CEO for this company
+    const ceo = new CEOAgent({
+      name: `${companyName} CEO`,
+      llmClient: this.jarvisLLMClient,
+      tools: this.agentTools,
+      wikiService: this.wikiService,
+    });
+
+    // Create default tech team for building
+    ceo.createTeam('default', {
+      workspace: this.workspace,
+      llmClient: this.jarvisLLMClient,
+      tools: this.agentTools,
+    });
+
+    // Create specialized teams
+    ceo.createTeam('frontend', {
+      workspace: this.workspace,
+      llmClient: this.jarvisLLMClient,
+      tools: this.agentTools,
+    });
+    ceo.createTeam('backend', {
+      workspace: this.workspace,
+      llmClient: this.jarvisLLMClient,
+      tools: this.agentTools,
+    });
+
+    // Register the company
+    const company: Company = {
+      id: companyId,
+      name: companyName,
+      domain,
+      ceo,
+      createdAt: new Date(),
+      status: 'active',
+    };
+    this.companies.set(companyId, company);
+
+    // Log to wiki if available
+    if (this.wikiService) {
+      await this.logCompanyCreation(company);
+    }
+
+    // Configure deployment
+    const deploymentConfig: DeploymentConfig = {
+      target: deployTarget,
+      monitor: true,
+      ports: { frontend: 3000, backend: 3001 },
+    };
+
+    // Execute build, deploy, and monitor workflow
+    const deploymentResult = await ceo.executeGoalWithDeployment(request, 'default', deploymentConfig);
+
+    // Generate enhanced summary with URLs
+    const summary = this.generateDeploymentSummary(deploymentResult, company);
+
+    return {
+      success: deploymentResult.success,
+      response: summary,
+      delegatedTo: companyId,
+      ceoResult: deploymentResult.buildResult,
+      deploymentResult,
+      newCompanyCreated: true,
+      escalatedToHuman: deploymentResult.escalatedToHuman,
+      humanEscalationReason: deploymentResult.humanEscalationReason,
+      urls: deploymentResult.deployResult ? {
+        frontendUrl: deploymentResult.deployResult.frontendUrl,
+        backendUrl: deploymentResult.deployResult.backendUrl,
+      } : undefined,
+    };
+  }
+
+  /**
+   * Generate a summary for deployment results
+   */
+  private generateDeploymentSummary(result: CEODeploymentResult, company: Company): string {
+    let summary = `## ${company.name} - Deployment Complete\n\n`;
+
+    // Build phase summary
+    if (result.buildResult.success) {
+      summary += `✅ **Build Phase**: All ${result.buildResult.completedProjects} project(s) completed successfully.\n\n`;
+    } else {
+      summary += `❌ **Build Phase**: Failed (${result.buildResult.failedProjects} project(s) failed)\n`;
+      if (result.buildResult.humanEscalationReason) {
+        summary += `   Reason: ${result.buildResult.humanEscalationReason}\n`;
+      }
+      summary += '\n';
+      return summary;
+    }
+
+    // Deployment phase summary
+    if (result.deployResult) {
+      if (result.deployResult.success) {
+        summary += `✅ **Deployment Phase**: Deployed successfully.\n\n`;
+
+        // Show URLs
+        summary += `### Your Application is Live!\n\n`;
+        if (result.deployResult.frontendUrl) {
+          summary += `- **Frontend**: ${result.deployResult.frontendUrl}\n`;
+        }
+        if (result.deployResult.backendUrl) {
+          summary += `- **Backend API**: ${result.deployResult.backendUrl}\n`;
+          summary += `- **Health Check**: ${result.deployResult.backendUrl}/health\n`;
+        }
+        summary += '\n';
+      } else {
+        summary += `❌ **Deployment Phase**: Failed\n`;
+        if (result.deployResult.error) {
+          summary += `   Error: ${result.deployResult.error}\n`;
+        }
+        summary += '\n';
+      }
+    }
+
+    // Monitoring phase summary
+    if (result.monitoringResult) {
+      if (result.monitoringResult.active) {
+        summary += `✅ **Monitoring**: Active\n`;
+        summary += `   Watching ${result.monitoringResult.targets.length} endpoint(s)\n`;
+        summary += `   Health checks running every 30 seconds.\n`;
+      }
+    }
+
+    // Escalation notice
+    if (result.escalatedToHuman) {
+      summary += `\n⚠️ **Human Input Required**: ${result.humanEscalationReason}\n`;
+    }
+
+    return summary;
   }
 
   /**

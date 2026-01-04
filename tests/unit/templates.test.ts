@@ -117,6 +117,33 @@ describe('Express Template', () => {
     expect(typesFile?.content).toContain('ApiResponse');
     expect(typesFile?.content).toContain('PaginatedResponse');
   });
+
+  it('should include Docker files for deployment', () => {
+    const template = createExpressTemplate({
+      projectName: 'my-api',
+    });
+
+    const filePaths = template.files.map((f) => f.path);
+
+    // Verify Docker files are included
+    expect(filePaths).toContain('Dockerfile');
+    expect(filePaths).toContain('.dockerignore');
+
+    // Verify Dockerfile has proper multi-stage build
+    const dockerfile = template.files.find((f) => f.path === 'Dockerfile');
+    expect(dockerfile).toBeDefined();
+    expect(dockerfile?.content).toContain('FROM node:20-alpine AS builder');
+    expect(dockerfile?.content).toContain('FROM node:20-alpine');
+    expect(dockerfile?.content).toContain('npm run build');
+    expect(dockerfile?.content).toContain('HEALTHCHECK');
+    expect(dockerfile?.content).toContain('/api/health');
+
+    // Verify .dockerignore excludes proper files
+    const dockerignore = template.files.find((f) => f.path === '.dockerignore');
+    expect(dockerignore).toBeDefined();
+    expect(dockerignore?.content).toContain('node_modules');
+    expect(dockerignore?.content).toContain('tests/');
+  });
 });
 
 describe('TemplateService', () => {

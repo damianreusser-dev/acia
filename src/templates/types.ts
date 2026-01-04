@@ -7,7 +7,7 @@
 /**
  * Project template categories
  */
-export type TemplateCategory = 'frontend' | 'backend' | 'fullstack';
+export type TemplateCategory = 'frontend' | 'backend' | 'fullstack' | 'infrastructure';
 
 /**
  * File to be generated from a template

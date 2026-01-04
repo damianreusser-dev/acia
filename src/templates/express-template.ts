@@ -340,6 +340,64 @@ coverage/
 `,
         description: 'Git ignore file',
       },
+      {
+        path: 'Dockerfile',
+        content: `# Multi-stage build for production
+FROM node:20-alpine AS builder
+WORKDIR /usr/src/app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Production stage
+FROM node:20-alpine
+WORKDIR /usr/src/app
+RUN apk add --no-cache curl
+COPY package*.json ./
+RUN npm ci --only=production
+COPY --from=builder /usr/src/app/dist ./dist
+EXPOSE 3001
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \\
+  CMD curl -f http://localhost:3001/api/health || exit 1
+CMD ["node", "dist/index.js"]
+`,
+        description: 'Docker multi-stage build for production',
+      },
+      {
+        path: '.dockerignore',
+        content: `# Dependencies
+node_modules
+npm-debug.log
+
+# Version control
+.git
+.gitignore
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Documentation
+*.md
+docs/
+
+# Tests
+tests/
+coverage/
+.nyc_output/
+
+# IDE
+.vscode/
+.idea/
+
+# Misc
+*.log
+.DS_Store
+`,
+        description: 'Docker ignore file',
+      },
     ],
   };
 }

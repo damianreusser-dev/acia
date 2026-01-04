@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-01-03 - Phase 6h: Azure Deployment + Build-Deploy-Monitor
+
+### Added
+- **Phase 6h: Azure Deploy Tools**
+  - DeployToAzureAppServiceTool: Deploy Node.js backend to Azure App Service
+  - DeployToAzureStaticWebTool: Deploy React frontend to Azure Static Web Apps
+  - DeployToAzureContainerAppsTool: Deploy Docker containers to Azure Container Apps
+  - GetAzureDeploymentStatusTool: Check deployment status
+  - GetAzureDeploymentLogsTool: Get deployment logs
+  - DeleteAzureDeploymentTool: Clean up Azure resources
+  - All tools have ['devops', 'ops'] roles for role-based access
+  - 53 new unit tests for Azure tools
+
+- **CEO Build-Deploy-Monitor Workflow**
+  - DeploymentConfig interface for local/azure-appservice/azure-containers targets
+  - CEODeploymentResult interface for combined build + deploy + monitoring results
+  - executeGoalWithDeployment() method for end-to-end build-deploy-monitor flow
+  - Sequential workflow: Tech Team builds → Ops Team deploys → Ops Team monitors
+  - 9 new unit tests for CEO deployment workflow
+
+- **Local Docker Deployment Flow**
+  - OpsDivision.detectDeploymentTarget() for local/azure/general routing
+  - executeLocalDockerDeployment() with docker-compose support
+  - extractPortsFromDescription() for custom port configuration
+  - Auto-registration of monitoring targets after local deployment
+  - Default ports: frontend 3000, backend 3001
+
+- **Jarvis Deployment Integration**
+  - detectDeploymentIntent() for deploy/launch/host keywords
+  - extractProjectName() from natural language requests
+  - createCompanyAndDeploy() for build-deploy-monitor flow
+  - generateDeploymentSummary() for user-friendly response
+  - JarvisResult extended with deploymentResult and urls fields
+  - Auto-includes docker, deploy, and azure tools in workspace mode
+
+- **Build-Deploy-Monitor E2E Benchmark Tests**
+  - tests/e2e/benchmarks/build-deploy-monitor.test.ts
+  - Local Docker deployment tests (requires Docker Desktop)
+  - Monitoring auto-setup tests
+  - Azure App Service deployment tests (requires Azure CLI + credentials)
+  - Azure Container Apps deployment tests
+  - Incident detection and auto-restart tests
+  - Deployment intent detection tests
+  - 8 E2E benchmark tests (conditional on Docker/Azure availability)
+
+### Changed
+- Removed Railway and Vercel tools from deploy-tools.ts (focus on Azure + local Docker)
+- OpsDivision now supports local Docker and Azure deployment targets
+- Jarvis now auto-includes deployment tools when workspace is specified
+
+### Fixed
+- createDockerTools() call in Jarvis (was incorrectly passing workspace argument)
+- TypeScript null checks in extractProjectName() method
+
 ## [0.6.1] - 2026-01-03 - Phase 6b-6g: Deployment & Operations Complete
 
 ### Added

@@ -316,6 +316,177 @@ describe('OpsDivision', () => {
       expect(ops.getIncidentAgent().getRunbook('restart-api')).toBeDefined();
     });
   });
+
+  describe('deployment target detection', () => {
+    it('should detect local Docker deployment', async () => {
+      const onProgress = vi.fn();
+      const ops = new OpsDivision({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+        onProgress,
+      });
+
+      await ops.executeTask('Deploy locally using Docker Compose');
+
+      expect(onProgress).toHaveBeenCalledWith(expect.stringContaining('local'));
+    });
+
+    it('should detect Azure deployment', async () => {
+      const onProgress = vi.fn();
+      const ops = new OpsDivision({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+        onProgress,
+      });
+
+      await ops.executeTask('Deploy to Azure App Service');
+
+      expect(onProgress).toHaveBeenCalledWith(expect.stringContaining('azure'));
+    });
+
+    it('should detect localhost keyword as local', async () => {
+      const onProgress = vi.fn();
+      const ops = new OpsDivision({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+        onProgress,
+      });
+
+      await ops.executeTask('Deploy and run on localhost');
+
+      expect(onProgress).toHaveBeenCalledWith(expect.stringContaining('local'));
+    });
+  });
+
+  describe('local Docker deployment', () => {
+    it('should auto-register monitoring targets after local deployment', async () => {
+      // Mock LLM to return successful tool execution pattern
+      const successLLMClient = {
+        chat: vi.fn().mockResolvedValue({
+          content: 'TASK_COMPLETED: Docker containers started successfully.',
+          usage: { inputTokens: 10, outputTokens: 10 },
+        }),
+        chatWithFunctions: vi.fn().mockResolvedValue({
+          content: 'Deployment completed',
+          functionCalls: [
+            { name: 'docker_compose_up', arguments: { path: '/test', build: true } }
+          ],
+          usage: { inputTokens: 10, outputTokens: 10 },
+        }),
+      } as unknown as LLMClient;
+
+      const ops = new OpsDivision({
+        workspace: '/test/workspace',
+        llmClient: successLLMClient,
+        tools: mockTools,
+      });
+
+      // Initially no targets
+      expect(ops.getMonitoringAgent().getTargets().length).toBe(0);
+
+      // Spy on DevOpsAgent to make it return success
+      vi.spyOn(ops.getDevOpsAgent(), 'executeTask').mockResolvedValue({
+        success: true,
+        output: 'Docker containers started successfully',
+      });
+
+      await ops.executeTask('Deploy locally using Docker');
+
+      // After local deployment, monitoring targets should be registered
+      const targets = ops.getMonitoringAgent().getTargets();
+      expect(targets.length).toBe(2);
+      expect(targets.some(t => t.name === 'local-backend')).toBe(true);
+      expect(targets.some(t => t.name === 'local-frontend')).toBe(true);
+    });
+
+    it('should use default ports when not specified', async () => {
+      const ops = new OpsDivision({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+      });
+
+      // Spy on DevOpsAgent to make it return success
+      vi.spyOn(ops.getDevOpsAgent(), 'executeTask').mockResolvedValue({
+        success: true,
+        output: 'Docker containers started successfully',
+      });
+
+      await ops.executeTask('Deploy locally using Docker');
+
+      const targets = ops.getMonitoringAgent().getTargets();
+      const backend = targets.find(t => t.name === 'local-backend');
+      const frontend = targets.find(t => t.name === 'local-frontend');
+
+      expect(backend?.url).toBe('http://localhost:3001');
+      expect(frontend?.url).toBe('http://localhost:3000');
+    });
+
+    it('should extract custom ports from description', async () => {
+      const ops = new OpsDivision({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+      });
+
+      // Spy on DevOpsAgent to make it return success
+      vi.spyOn(ops.getDevOpsAgent(), 'executeTask').mockResolvedValue({
+        success: true,
+        output: 'Docker containers started successfully',
+      });
+
+      await ops.executeTask('Deploy locally. Frontend on port 4000. Backend on port 4001.');
+
+      const targets = ops.getMonitoringAgent().getTargets();
+      const backend = targets.find(t => t.name === 'local-backend');
+      const frontend = targets.find(t => t.name === 'local-frontend');
+
+      expect(backend?.url).toBe('http://localhost:4001');
+      expect(frontend?.url).toBe('http://localhost:4000');
+    });
+
+    it('should set health check intervals on monitoring targets', async () => {
+      const ops = new OpsDivision({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+      });
+
+      // Spy on DevOpsAgent to make it return success
+      vi.spyOn(ops.getDevOpsAgent(), 'executeTask').mockResolvedValue({
+        success: true,
+        output: 'Docker containers started successfully',
+      });
+
+      await ops.executeTask('Deploy locally using Docker');
+
+      const targets = ops.getMonitoringAgent().getTargets();
+      expect(targets.every(t => t.checkInterval === 30)).toBe(true);
+    });
+
+    it('should not register monitoring targets if deployment fails', async () => {
+      const ops = new OpsDivision({
+        workspace: '/test/workspace',
+        llmClient: mockLLMClient,
+        tools: mockTools,
+      });
+
+      // Spy on DevOpsAgent to make it return failure
+      vi.spyOn(ops.getDevOpsAgent(), 'executeTask').mockResolvedValue({
+        success: false,
+        error: 'Docker not available',
+      });
+
+      await ops.executeTask('Deploy locally using Docker');
+
+      // No targets should be registered on failure
+      const targets = ops.getMonitoringAgent().getTargets();
+      expect(targets.length).toBe(0);
+    });
+  });
 });
 
 describe('TeamFactory OpsTeam Registration', () => {

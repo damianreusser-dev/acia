@@ -8,7 +8,10 @@
  */
 
 import { spawn } from 'child_process';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import { Tool, ToolDefinition, ToolResult, AgentRole } from './types.js';
+import { validateComposeYml, formatValidationResults } from '../validation/compose-validator.js';
 
 /** Roles that can use Docker tools */
 const DOCKER_TOOL_ROLES: AgentRole[] = ['devops', 'ops'];
@@ -266,6 +269,12 @@ export class DockerComposeUpTool implements Tool {
           description: 'Build images before starting (default: false)',
           required: false,
         },
+        {
+          name: 'skipValidation',
+          type: 'boolean',
+          description: 'Skip compose file validation (default: false)',
+          required: false,
+        },
       ],
     };
   }
@@ -274,9 +283,51 @@ export class DockerComposeUpTool implements Tool {
     const compPath = params['path'];
     const detach = params['detach'] ?? true;
     const build = params['build'] ?? false;
+    const skipValidation = params['skipValidation'] ?? false;
 
     if (typeof compPath !== 'string') {
       return { success: false, error: 'Parameter "path" must be a string' };
+    }
+
+    // Validate compose file before running (unless skipped)
+    if (!skipValidation) {
+      try {
+        const composePaths = [
+          path.join(compPath, 'docker-compose.yml'),
+          path.join(compPath, 'docker-compose.yaml'),
+          path.join(compPath, 'compose.yml'),
+          path.join(compPath, 'compose.yaml'),
+        ];
+
+        let composeContent: string | null = null;
+        for (const composePath of composePaths) {
+          try {
+            composeContent = await fs.readFile(composePath, 'utf-8');
+            break;
+          } catch {
+            // Try next path
+          }
+        }
+
+        if (composeContent) {
+          const validation = validateComposeYml(composeContent);
+          if (!validation.valid) {
+            const formattedResults = formatValidationResults(validation);
+            return {
+              success: false,
+              error: `Invalid docker-compose.yml: ${validation.errors.join(', ')}`,
+              output: formattedResults,
+            };
+          }
+          // Log warnings but continue
+          if (validation.warnings.length > 0) {
+            console.log(`[DockerComposeUpTool] Warnings: ${validation.warnings.join(', ')}`);
+          }
+        }
+      } catch (error) {
+        // If we can't read the file, let Docker handle the error
+        console.log(`[DockerComposeUpTool] Could not validate compose file: ${error}`);
+      }
     }
 
     const args = ['compose', 'up'];

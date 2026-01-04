@@ -24,38 +24,51 @@ WRONG (will FAIL):
 - "You can deploy by..."
 
 CORRECT (will SUCCEED):
-<tool_call>{"tool": "write_file", "params": {"path": "Dockerfile", "content": "..."}}</tool_call>
+<tool_call>{"tool": "generate_deployment", "params": {"projectPath": "backend", "port": 3001}}</tool_call>
 
 ## Core Responsibilities
 
 1. **Containerization**: Create Dockerfiles and docker-compose.yml
-2. **Deployment**: Deploy to Railway, Vercel, or other platforms
+2. **Deployment**: Deploy to Railway, Vercel, or local Docker
 3. **Monitoring**: Set up health checks and monitoring configs
 4. **CI/CD**: Create pipeline configurations
 
+## Docker Deployment (CRITICAL - READ THIS)
+
+When creating Docker deployments, ALWAYS use the generate_deployment tool first:
+
+1. FIRST: Call generate_deployment with projectPath, port, and healthPath
+   - This creates proper Dockerfile, .dockerignore, and docker-compose.yml
+   - Templates are tested and include health checks
+   - NO problematic volume mounts that break containers
+
+2. THEN: Optionally customize if needed via write_file
+
+3. FINALLY: Build and test with docker_compose_up
+
+NEVER write Dockerfile from scratch - use generate_deployment!
+
 ## Required Workflow for Docker Tasks
 
-Step 1: Analyze the application structure
-<tool_call>{"tool": "list_directory", "params": {"path": "."}}</tool_call>
+Step 1: Use generate_deployment to create Docker files
+<tool_call>{"tool": "generate_deployment", "params": {"projectPath": "backend", "port": 3001, "healthPath": "/api/health"}}</tool_call>
 
-Step 2: Create Dockerfile
-<tool_call>{"tool": "write_file", "params": {"path": "Dockerfile", "content": "FROM node:20-alpine..."}}</tool_call>
+Step 2: For fullstack apps, use generate_fullstack_deployment
+<tool_call>{"tool": "generate_fullstack_deployment", "params": {"projectPath": ".", "backendPort": 3001, "frontendPort": 3000}}</tool_call>
 
-Step 3: Create docker-compose.yml (for multi-service apps)
-<tool_call>{"tool": "write_file", "params": {"path": "docker-compose.yml", "content": "version: '3.8'..."}}</tool_call>
-
-Step 4: Build and test (if Docker available)
-<tool_call>{"tool": "docker_build", "params": {"context": ".", "tag": "app:latest"}}</tool_call>
+Step 3: Build and run with docker-compose
+<tool_call>{"tool": "docker_compose_up", "params": {"path": ".", "build": true}}</tool_call>
 
 ## Tools Reference
 
 | Tool | Use For | Required? |
 |------|---------|-----------|
-| write_file | Create Dockerfiles, configs | YES - every task |
-| read_file | Understand app structure | YES - before writing |
+| generate_deployment | Create Docker files from templates | YES - for Docker tasks |
+| generate_fullstack_deployment | Create fullstack Docker setup | For fullstack apps |
+| write_file | Custom configs, manual overrides | Only if templates insufficient |
+| read_file | Understand app structure | Before deployment |
 | docker_build | Build Docker images | When Docker available |
-| docker_run | Run containers | When Docker available |
-| docker_compose_up | Start multi-service stack | For fullstack apps |
+| docker_compose_up | Start multi-service stack | To deploy locally |
 | deploy_to_railway | Deploy backend to Railway | When deploying backend |
 | deploy_to_vercel | Deploy frontend to Vercel | When deploying frontend |
 
@@ -158,8 +171,11 @@ export class DevOpsAgent extends Agent {
       // Chat options for tool forcing on first attempt
       let options: ChatOptions | undefined;
       if (attempt === 1) {
-        if (isDockerTask && this.hasTool('write_file')) {
-          // Docker tasks should write Dockerfile first
+        if (isDockerTask && this.hasTool('generate_deployment')) {
+          // Docker tasks should use template-based deployment
+          options = { toolChoice: { name: 'generate_deployment' } };
+        } else if (isDockerTask && this.hasTool('write_file')) {
+          // Fallback to write_file if generate_deployment not available
           options = { toolChoice: { name: 'write_file' } };
         } else if (isDeployTask && this.hasTool('deploy_to_railway')) {
           options = { toolChoice: { name: 'deploy_to_railway' } };
@@ -229,11 +245,11 @@ export class DevOpsAgent extends Agent {
       prompt += `### WHAT YOU MUST DO NOW\n`;
       prompt += `1. Output a <tool_call> block (not a description)\n`;
       prompt += `2. The tool_call must contain valid JSON\n`;
-      prompt += `3. Use write_file to create Dockerfiles, configs, etc.\n\n`;
+      prompt += `3. Use generate_deployment for Docker files (preferred) or write_file for custom configs\n\n`;
       prompt += `### CORRECT FORMAT\n`;
       prompt += `\`\`\`\n`;
       prompt += `<tool_call>\n`;
-      prompt += `{"tool": "write_file", "params": {"path": "Dockerfile", "content": "FROM node:20-alpine..."}}\n`;
+      prompt += `{"tool": "generate_deployment", "params": {"projectPath": "backend", "port": 3001}}\n`;
       prompt += `</tool_call>\n`;
       prompt += `\`\`\`\n\n`;
       prompt += `**WARNING**: This is attempt ${retryContext.attemptNumber} of ${DevOpsAgent.MAX_TASK_RETRIES}. `;
@@ -254,23 +270,25 @@ export class DevOpsAgent extends Agent {
 
     // Add task-specific instructions
     if (this.isDockerTask(task)) {
-      prompt += `## DOCKER TASK - TOOL CALLS MANDATORY\n\n`;
-      prompt += `You MUST create Docker artifacts using write_file.\n\n`;
-      prompt += `### REQUIRED FILES:\n`;
-      prompt += `1. **Dockerfile** - Container build instructions\n`;
-      prompt += `2. **docker-compose.yml** (if multi-service) - Service orchestration\n`;
-      prompt += `3. **.dockerignore** - Exclude unnecessary files\n\n`;
-      prompt += `### EXAMPLE DOCKERFILE:\n`;
-      prompt += `\`\`\`dockerfile\n`;
-      prompt += `FROM node:20-alpine\n`;
-      prompt += `WORKDIR /app\n`;
-      prompt += `COPY package*.json ./\n`;
-      prompt += `RUN npm ci --only=production\n`;
-      prompt += `COPY dist/ ./dist/\n`;
-      prompt += `EXPOSE 3000\n`;
-      prompt += `HEALTHCHECK CMD curl -f http://localhost:3000/health || exit 1\n`;
-      prompt += `CMD ["node", "dist/index.js"]\n`;
+      prompt += `## DOCKER TASK - USE generate_deployment TOOL\n\n`;
+      prompt += `ALWAYS use generate_deployment to create Docker files.\n`;
+      prompt += `This uses tested templates with proper health checks and NO problematic volume mounts.\n\n`;
+      prompt += `### REQUIRED TOOL CALL:\n`;
+      prompt += `\`\`\`\n`;
+      prompt += `<tool_call>\n`;
+      prompt += `{"tool": "generate_deployment", "params": {"projectPath": "backend", "port": 3001, "healthPath": "/api/health"}}\n`;
+      prompt += `</tool_call>\n`;
       prompt += `\`\`\`\n\n`;
+      prompt += `### FOR FULLSTACK APPS:\n`;
+      prompt += `\`\`\`\n`;
+      prompt += `<tool_call>\n`;
+      prompt += `{"tool": "generate_fullstack_deployment", "params": {"projectPath": ".", "backendPort": 3001, "frontendPort": 3000}}\n`;
+      prompt += `</tool_call>\n`;
+      prompt += `\`\`\`\n\n`;
+      prompt += `### IMPORTANT:\n`;
+      prompt += `- Do NOT write Dockerfile manually with write_file\n`;
+      prompt += `- The templates handle health checks, ports, and production settings\n`;
+      prompt += `- Only use write_file for custom configs after template generation\n\n`;
     } else if (this.isDeployTask(task)) {
       prompt += `## DEPLOYMENT TASK - TOOL CALLS MANDATORY\n\n`;
       prompt += `You MUST create deployment configs and/or call deploy tools.\n\n`;
@@ -334,14 +352,16 @@ export class DevOpsAgent extends Agent {
   private verifyToolCalls(task: Task): ToolCallVerification {
     const metrics = this.getToolCallMetrics();
 
-    // Docker tasks: MUST write Dockerfile or compose
+    // Docker tasks: MUST use generate_deployment OR write_file
     if (this.isDockerTask(task)) {
+      const generateCalls = (metrics.byTool.get('generate_deployment') ?? 0) +
+                            (metrics.byTool.get('generate_fullstack_deployment') ?? 0);
       const writeCalls = metrics.byTool.get('write_file') ?? 0;
-      if (writeCalls === 0) {
+      if (generateCalls === 0 && writeCalls === 0) {
         return {
           sufficient: false,
-          reason: 'Docker task requires write_file to create Dockerfile/compose. You described what to do instead of doing it.',
-          required: ['write_file'],
+          reason: 'Docker task requires generate_deployment or write_file to create Docker files. You described what to do instead of doing it.',
+          required: ['generate_deployment', 'write_file'],
         };
       }
       return { sufficient: true };

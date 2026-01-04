@@ -23,8 +23,7 @@ import type { ITeam } from './team-interface.js';
 import { WorkflowResult } from './team-interface.js';
 
 // Re-export for backward compatibility
-export { Priority, WorkflowResult } from './team-interface.js';
-export type { TeamCallbacks } from './team-interface.js';
+export type { Priority, TeamCallbacks, WorkflowResult } from './team-interface.js';
 
 /**
  * Agent specialization types
@@ -59,6 +58,8 @@ export class Team implements ITeam {
   private maxIterations: number;
   private onEscalation?: (reason: string, task: Task) => void;
   private onProgress?: (message: string, task?: Task) => void;
+  /** Active project path for file operations (set after scaffolding) */
+  private activeProjectPath?: string;
 
   constructor(config: TeamConfig) {
     this.workspace = config.workspace;
@@ -473,9 +474,75 @@ export class Team implements ITeam {
    */
   private async executeDevTask(task: Task): Promise<TaskResult> {
     this.pmAgent.updateTaskStatus(task.id, 'in_progress');
+
+    // Inject active project path into task context for proper file paths
+    if (this.activeProjectPath) {
+      task.context = {
+        ...task.context,
+        projectPath: this.activeProjectPath,
+      };
+    }
+
     const agent = this.getDevAgentForTask(task);
     this.emitProgress(`Using ${agent.role} for: ${task.title}`, task);
-    return agent.executeTask(task);
+    const result = await agent.executeTask(task);
+
+    // Extract and track project path from scaffold tasks
+    if (result.success && this.isScaffoldTask(task)) {
+      const projectPath = this.extractProjectPath(result, task);
+      if (projectPath) {
+        this.activeProjectPath = projectPath;
+        this.emitProgress(`Project path set to: ${projectPath}`, task);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Check if a task is for scaffolding a new project
+   */
+  private isScaffoldTask(task: Task): boolean {
+    const text = `${task.title} ${task.description}`.toLowerCase();
+    return text.includes('scaffold') ||
+           text.includes('generate_project') ||
+           text.includes('create project');
+  }
+
+  /**
+   * Extract project path from scaffold task result
+   */
+  private extractProjectPath(result: TaskResult, task: Task): string | undefined {
+    // Try to extract from result output
+    const output = result.output ?? '';
+
+    // Look for common patterns in scaffold output
+    const patterns = [
+      /project (?:created|scaffolded) (?:at|in):?\s*['"]?([^\s'"]+)['"]?/i,
+      /created (?:project|files) in:?\s*['"]?([^\s'"]+)['"]?/i,
+      /generated:?\s*['"]?([^\s'"]+(?:\/|\\)(?:backend|frontend|src)[^\s'"]*)['"]?/i,
+      /projectName['":\s]+['"]?(\w[\w-]*)['"]?/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = output.match(pattern);
+      if (match && match[1]) {
+        // If it's just a project name, construct full path
+        const extracted = match[1].trim();
+        if (!extracted.includes('/') && !extracted.includes('\\')) {
+          return `${extracted}/backend`;
+        }
+        return extracted;
+      }
+    }
+
+    // Fallback: check task context for projectName
+    const projectName = task.context?.projectName;
+    if (typeof projectName === 'string') {
+      return `${projectName}/backend`;
+    }
+
+    return undefined;
   }
 
   /**

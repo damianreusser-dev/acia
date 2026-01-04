@@ -8,3 +8,4 @@ export * from './types.js';
 export * from './react-template.js';
 export * from './express-template.js';
 export * from './template-service.js';
+export * from './docker/index.js';
